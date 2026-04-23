@@ -15,7 +15,7 @@ const BG_ACCENT_MAP: Record<string, string> = {
   "": "#1a1a1a", "#ffffff": "#1a1a1a", "#f5f5f5": "#1a1a1a",
   "#f8e8e8": "#c2636a", "#f5f0e8": "#b8860b", "#e8f5f0": "#0d9373",
   "#d6e9f8": "#1a1a1a", "#4a9c8c": "#ffffff", "#1a1a2e": "#a78bfa",
-  "#2d3436": "#48dbfb", "#f4efe7": "#1a1a1a", "#000000": "#DEFB01",
+  "#2d3436": "#48dbfb", "#f4efe7": "#1a1a1a", "#000000": "#d7ff8b",
   "#ff0545": "#d90038", "#ff6a8d": "#e0325a", "#ff8c1f": "#e06b00",
   "#8b5cf6": "#6d3bd4", "#14b8a6": "#0d8f7f", "#e8eef8": "#0087DF",
   "#f6f8fb": "#0087DF", "#f1dbf1": "#D36DFF",
