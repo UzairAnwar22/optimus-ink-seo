@@ -1,6 +1,8 @@
-import { redirect } from "next/navigation";
+import { permanentRedirect } from "next/navigation";
+import brand from "@/config/brand";
 
-// Home page redirects to main site — this Next.js app is only for /:slug profile pages
+// Home page permanently redirects (308) to main site — this Next.js app is only
+// for /:slug profile pages. Permanent redirect transfers SEO link equity.
 export default function Home() {
-  redirect(process.env.NEXT_PUBLIC_SITE_URL || "https://askmybio.ai");
+  permanentRedirect(process.env.NEXT_PUBLIC_SITE_URL || brand.siteUrl);
 }

@@ -1,5 +1,6 @@
 import { ImageResponse } from "next/og";
 import { fetchPublicProfile, getSettings } from "@/lib/api";
+import brand from "@/config/brand";
 
 export const runtime = "nodejs";
 export const alt = "Profile";
@@ -55,7 +56,7 @@ export default async function TwitterImage({
           )}
         </div>
         {bio && <span style={{ fontSize: 22, color: subColor, textAlign: "center", maxWidth: "700px" }}>{bio}</span>}
-        <span style={{ position: "absolute", bottom: 28, right: 36, fontSize: 16, fontWeight: 600, color: isDark ? "rgba(255,255,255,0.3)" : "rgba(0,0,0,0.15)" }}>askmybio.ai</span>
+        <span style={{ position: "absolute", bottom: 28, right: 36, fontSize: 16, fontWeight: 600, color: isDark ? "rgba(255,255,255,0.3)" : "rgba(0,0,0,0.15)" }}>{brand.bioDomain}</span>
       </div>
     ),
     { ...size }

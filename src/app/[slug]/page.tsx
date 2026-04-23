@@ -2,6 +2,7 @@ import { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { fetchPublicProfile, getSiteUrl } from "@/lib/api";
 import { extractSeoContent } from "@/lib/seo";
+import brand from "@/config/brand";
 import ProfilePage from "./ProfilePage";
 
 interface Props {
@@ -33,6 +34,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     ? `${seo.bio.slice(0, 120)}${contentSnippets ? ` — ${contentSnippets.slice(0, 40)}` : ""}`
     : contentSnippets.slice(0, 160) || `Check out ${seo.name}'s bio link page.`;
 
+  const modifiedTime = profile.publishedAt || undefined;
+
   return {
     title,
     description,
@@ -42,16 +45,22 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       title: seo.name,
       description,
       url: profileUrl,
-      siteName: "AskMyBio",
+      siteName: brand.name,
+      locale: brand.ogLocale,
       images: [{ url: ogImageUrl, width: 1200, height: 630, alt: seo.name }],
     },
     twitter: {
       card: "summary_large_image",
+      site: brand.twitterHandle,
+      creator: brand.twitterHandle,
       title: seo.name,
       description,
       images: [ogImageUrl],
     },
     robots: { index: true, follow: true },
+    ...(modifiedTime
+      ? { other: { "article:modified_time": modifiedTime, "profile:username": slug } }
+      : { other: { "profile:username": slug } }),
   };
 }
 
@@ -62,12 +71,12 @@ async function ProfileJsonLd({ slug }: { slug: string }) {
 
   const seo = extractSeoContent(profile);
   const siteUrl = getSiteUrl();
+  const profileUrl = `${siteUrl}/${slug}`;
 
-  const jsonLd: Record<string, unknown> = {
-    "@context": "https://schema.org",
+  const person: Record<string, unknown> = {
     "@type": "Person",
     name: seo.name,
-    url: `${siteUrl}/${slug}`,
+    url: profileUrl,
     ...(seo.bio ? { description: seo.bio } : {}),
     ...(seo.avatar ? { image: seo.avatar } : {}),
     ...(seo.socialLinks.length > 0 ? { sameAs: seo.socialLinks.map((s) => s.url) } : {}),
@@ -75,12 +84,22 @@ async function ProfileJsonLd({ slug }: { slug: string }) {
 
   const products = seo.blocks.filter((b) => b.type === "product");
   if (products.length > 0) {
-    jsonLd.makesOffer = products.map((p) => ({
+    person.makesOffer = products.map((p) => ({
       "@type": "Offer",
       name: p.text,
-      url: p.url || `${siteUrl}/${slug}`,
+      url: p.url || profileUrl,
     }));
   }
+
+  // ProfilePage wraps Person — Google's 2024 recommended shape for profile pages.
+  // https://developers.google.com/search/docs/appearance/structured-data/profile-page
+  const jsonLd: Record<string, unknown> = {
+    "@context": "https://schema.org",
+    "@type": "ProfilePage",
+    url: profileUrl,
+    ...(profile.publishedAt ? { dateCreated: profile.publishedAt, dateModified: profile.publishedAt } : {}),
+    mainEntity: person,
+  };
 
   return (
     <script

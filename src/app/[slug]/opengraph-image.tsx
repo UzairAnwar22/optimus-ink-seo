@@ -1,5 +1,6 @@
 import { ImageResponse } from "next/og";
 import { fetchPublicProfile, getSettings } from "@/lib/api";
+import brand from "@/config/brand";
 
 export const runtime = "nodejs";
 export const alt = "Profile";
@@ -161,7 +162,7 @@ export default async function OgImage({
             color: isDark ? "rgba(255,255,255,0.3)" : "rgba(0,0,0,0.15)",
           }}
         >
-          askmybio.ai
+          {brand.bioDomain}
         </span>
       </div>
     ),

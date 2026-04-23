@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { getSpaUrl } from "@/lib/api";
 
 /**
  * Hybrid approach:
@@ -12,9 +13,8 @@ export default function ProfilePage({ slug }: { slug: string }) {
   const [spaUrl, setSpaUrl] = useState("");
 
   useEffect(() => {
-    // In production, iframe loads from same origin (reverse proxy routes to SPA)
-    // In dev, loads from NEXT_PUBLIC_SPA_URL env var
-    const url = process.env.NEXT_PUBLIC_SPA_URL || window.location.origin;
+    // Resolution: NEXT_PUBLIC_SPA_URL env > brand.spaUrl > same-origin (reverse proxy fallback)
+    const url = getSpaUrl() || window.location.origin;
     setSpaUrl(`${url}/${slug}`);
   }, [slug]);
 

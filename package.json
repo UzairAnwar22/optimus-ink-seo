@@ -3,9 +3,18 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev --port=3009",
+    "dev:optimus": "cross-env NEXT_PUBLIC_BRAND=optimus next dev --port=3009",
+    "dev:mykiosk": "cross-env NEXT_PUBLIC_BRAND=mykiosk next dev --port=3009",
+    "dev:kevo": "cross-env NEXT_PUBLIC_BRAND=kevo next dev --port=3009",
     "build": "next build",
+    "build:optimus": "cross-env NEXT_PUBLIC_BRAND=optimus next build",
+    "build:mykiosk": "cross-env NEXT_PUBLIC_BRAND=mykiosk next build",
+    "build:kevo": "cross-env NEXT_PUBLIC_BRAND=kevo next build",
     "start": "next start",
+    "start:optimus": "cross-env NEXT_PUBLIC_BRAND=optimus next start",
+    "start:mykiosk": "cross-env NEXT_PUBLIC_BRAND=mykiosk next start",
+    "start:kevo": "cross-env NEXT_PUBLIC_BRAND=kevo next start",
     "lint": "eslint"
   },
   "dependencies": {
@@ -18,6 +27,7 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "cross-env": "^10.1.0",
     "eslint": "^9",
     "eslint-config-next": "16.2.4",
     "tailwindcss": "^4",

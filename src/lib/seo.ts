@@ -93,39 +93,6 @@ function extractBioBlocks(settings: Record<string, unknown>): SeoBlock[] {
   return blocks;
 }
 
-/** Extract BlockNote editor state blocks */
-function extractEditorBlocks(editorState: unknown): SeoBlock[] {
-  const blocks: SeoBlock[] = [];
-  if (!editorState) return blocks;
-
-  const doc = (editorState as Record<string, unknown>)?.document as Array<Record<string, unknown>> | undefined;
-  const items = Array.isArray(doc) ? doc : Array.isArray(editorState) ? editorState as Array<Record<string, unknown>> : [];
-
-  for (const block of items) {
-    const type = String(block.type || block.blockType || "");
-
-    // Paragraph / heading text content
-    if (block.content && Array.isArray(block.content)) {
-      const text = (block.content as Array<Record<string, unknown>>)
-        .map((c) => stripHtml(String(c.text || "")))
-        .filter(Boolean)
-        .join(" ");
-      if (text) blocks.push({ type: type || "text", text });
-    }
-
-    // Props-based content (social widgets, product cards, etc.)
-    const props = block.props as Record<string, unknown> | undefined;
-    if (props) {
-      if (props.username && type.endsWith("Widget")) {
-        const platform = type.replace("Widget", "");
-        blocks.push({ type: "social", text: `${platform}: @${props.username}` });
-      }
-    }
-  }
-
-  return blocks;
-}
-
 /** Extract header settings (promo widgets, labels) */
 function extractHeaderContent(settings: Record<string, unknown>): SeoBlock[] {
   const blocks: SeoBlock[] = [];
@@ -177,7 +144,6 @@ export function extractSeoContent(profile: ProfileData): SeoContent {
   const blocks: SeoBlock[] = [
     ...extractHeaderContent(settings),
     ...extractBioBlocks(settings),
-    ...extractEditorBlocks(profile.editorState),
   ];
 
   return { name, bio, avatar, socialLinks, blocks, isVerified };

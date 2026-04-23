@@ -1,5 +1,7 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
+import brand from "@/config/brand";
+import { getApiBaseUrl } from "@/lib/api";
 import "./globals.css";
 
 const inter = Inter({
@@ -9,15 +11,36 @@ const inter = Inter({
 
 export const metadata: Metadata = {
   title: {
-    default: "AskMyBio — AI-Powered Bio Link",
+    default: `${brand.name} — ${brand.titleSuffix}`,
     template: "%s",
   },
-  description: "Create your AI-powered bio link page. Share your profile, products, and content in one place.",
-  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || "https://askmybio.ai"),
+  description: brand.description,
+  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || brand.siteUrl),
+  applicationName: brand.name,
+  manifest: "/manifest.webmanifest",
+  icons: {
+    icon: brand.favicon,
+    shortcut: brand.favicon,
+    apple: brand.appleTouchIcon,
+  },
+  appleWebApp: {
+    capable: true,
+    title: brand.name,
+    statusBarStyle: "default",
+  },
+  formatDetection: {
+    telephone: false,
+  },
   robots: {
     index: true,
     follow: true,
   },
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  themeColor: brand.colors.primary,
 };
 
 export default function RootLayout({
@@ -25,9 +48,18 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const apiOrigin = new URL(getApiBaseUrl()).origin;
   return (
     <html lang="en" className={`${inter.variable} h-full antialiased`}>
-      <body className="min-h-full flex flex-col" style={{ fontFamily: "var(--font-body), system-ui, -apple-system, sans-serif" }}>
+      <head>
+        <link rel="preconnect" href={apiOrigin} crossOrigin="anonymous" />
+        <link rel="dns-prefetch" href={apiOrigin} />
+      </head>
+      <body
+        className="min-h-full flex flex-col"
+        style={{ fontFamily: "var(--font-body), system-ui, -apple-system, sans-serif" }}
+        suppressHydrationWarning
+      >
         {children}
       </body>
     </html>
