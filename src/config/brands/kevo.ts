@@ -7,7 +7,7 @@ const kevo: BrandConfig = {
   tagline: "Powered by Kevo",
   bioDomain: "kevo.store",
   siteUrl: "https://kevo.store",
-  spaUrl: "https://kevo.store",
+  spaUrl: "https://kevo.store/app",
   apiUrl: "https://api.kevo.store",
   favicon: "/kevo-fav.png",
   appleTouchIcon: "/kevo-fav.png",
