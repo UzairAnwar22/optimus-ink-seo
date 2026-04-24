@@ -3,17 +3,16 @@
 import { useEffect, useState } from "react";
 import brand from "@/config/brand";
 import {
-  loginApi,
-  persistAuth,
+  loginHandoffApi,
   getProviderAuthUrl,
-  verifyOAuthCode,
   getOAuthCallbackUrl,
   openOAuthPopup,
+  buildAppResolveUrl,
+  getAppBaseUrl,
   OAUTH_MESSAGE_TYPE,
 } from "@/lib/auth";
 
-const POST_LOGIN_PATH = "/app/my-pages";
-const POST_LOGIN_ADMIN_PATH = "/app/admin";
+const POST_LOGIN_NEXT = "/my-pages";
 
 const GoogleG = () => (
   <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true">
@@ -23,11 +22,6 @@ const GoogleG = () => (
     <path fill="#1976D2" d="M43.611 20.083H42V20H24v8h11.303a11.98 11.98 0 0 1-4.117 5.57l.003-.002 6.184 5.233C36.965 39.17 44 34 44 24c0-1.341-.138-2.65-.389-3.917Z" />
   </svg>
 );
-
-function redirectAfterLogin(user: { role?: string } | null) {
-  const path = user?.role === "superadmin" ? POST_LOGIN_ADMIN_PATH : POST_LOGIN_PATH;
-  window.location.href = path;
-}
 
 export default function SignInForm() {
   const [email, setEmail] = useState("");
@@ -40,14 +34,13 @@ export default function SignInForm() {
     e.preventDefault();
     setError("");
     setIsLoading(true);
-    const result = await loginApi({ email, password });
-    setIsLoading(false);
+    const result = await loginHandoffApi({ email, password });
     if (result.ok) {
-      persistAuth(result.data.user, result.data.tokens);
-      redirectAfterLogin(result.data.user as { role?: string });
-    } else {
-      setError(result.error || "Invalid email or password");
+      window.location.href = buildAppResolveUrl(result.handoffToken, POST_LOGIN_NEXT);
+      return;
     }
+    setIsLoading(false);
+    setError(result.error || "Invalid email or password");
   };
 
   const handleGoogle = async () => {
@@ -65,7 +58,8 @@ export default function SignInForm() {
       window.location.href = result.url;
       return;
     }
-    const allowedOrigin = window.location.origin;
+    const appOrigin = new URL(getAppBaseUrl()).origin;
+    const allowedOrigins = [window.location.origin, appOrigin];
     const closeCheck = window.setInterval(() => {
       if (popup.closed) {
         cleanup();
@@ -79,25 +73,20 @@ export default function SignInForm() {
       window.clearTimeout(timeout);
     }
     async function onMessage(event: MessageEvent) {
-      if (event.origin !== allowedOrigin) return;
-      const data = event.data as { type?: string; code?: string; provider?: string; errorMessage?: string };
+      if (!allowedOrigins.includes(event.origin)) return;
+      const data = event.data as { type?: string; success?: boolean; errorMessage?: string };
       if (data?.type !== OAUTH_MESSAGE_TYPE) return;
       cleanup();
-      if (data.errorMessage) {
-        setError(data.errorMessage);
+      if (!data.success) {
+        setError(data.errorMessage || "Sign-in failed. Please try again.");
         setIsOAuthLoading(false);
         return;
       }
-      if (data.code && data.provider) {
-        const verify = await verifyOAuthCode({ code: data.code, provider: data.provider });
-        if (verify.ok) {
-          persistAuth(verify.data.user, verify.data.tokens);
-          window.location.href = `/app/onboarding${window.location.search || ""}`;
-        } else {
-          setError(verify.error || "Sign-in failed. Please try again.");
-          setIsOAuthLoading(false);
-        }
-      }
+      // Popup already verified the code and persisted tokens on the app origin.
+      // Just redirect the top-level window to the app; AuthContext picks up the
+      // stored session on load.
+      const query = window.location.search || "";
+      window.location.href = `${getAppBaseUrl()}/app/onboarding${query}`;
     }
     window.addEventListener("message", onMessage);
   };

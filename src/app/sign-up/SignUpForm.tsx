@@ -3,11 +3,10 @@
 import { useEffect, useState } from "react";
 import brand from "@/config/brand";
 import {
-  persistAuth,
   getProviderAuthUrl,
-  verifyOAuthCode,
   getOAuthCallbackUrl,
   openOAuthPopup,
+  getAppBaseUrl,
   OAUTH_MESSAGE_TYPE,
 } from "@/lib/auth";
 
@@ -53,7 +52,8 @@ export default function SignUpForm() {
       window.location.href = result.url;
       return;
     }
-    const allowedOrigin = window.location.origin;
+    const appOrigin = new URL(getAppBaseUrl()).origin;
+    const allowedOrigins = [window.location.origin, appOrigin];
     const closeCheck = window.setInterval(() => {
       if (popup.closed) {
         cleanup();
@@ -67,25 +67,18 @@ export default function SignUpForm() {
       window.clearTimeout(timeout);
     }
     async function onMessage(event: MessageEvent) {
-      if (event.origin !== allowedOrigin) return;
-      const data = event.data as { type?: string; code?: string; provider?: string; errorMessage?: string };
+      if (!allowedOrigins.includes(event.origin)) return;
+      const data = event.data as { type?: string; success?: boolean; errorMessage?: string };
       if (data?.type !== OAUTH_MESSAGE_TYPE) return;
       cleanup();
-      if (data.errorMessage) {
-        setError(data.errorMessage);
+      if (!data.success) {
+        setError(data.errorMessage || "Sign-up failed. Please try again.");
         setIsOAuthLoading(false);
         return;
       }
-      if (data.code && data.provider) {
-        const verify = await verifyOAuthCode({ code: data.code, provider: data.provider });
-        if (verify.ok) {
-          persistAuth(verify.data.user, verify.data.tokens);
-          window.location.href = `/app/onboarding${window.location.search || ""}`;
-        } else {
-          setError(verify.error || "Sign-up failed. Please try again.");
-          setIsOAuthLoading(false);
-        }
-      }
+      // Popup already verified the code and persisted tokens on the app origin.
+      const query = window.location.search || "";
+      window.location.href = `${getAppBaseUrl()}/app/onboarding${query}`;
     }
     window.addEventListener("message", onMessage);
   };

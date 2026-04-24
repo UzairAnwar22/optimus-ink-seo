@@ -45,6 +45,54 @@ export function loginApi(body: { email: string; password: string }) {
   return postJson("/api/auth/login", body);
 }
 
+interface HandoffSuccess {
+  ok: true;
+  handoffToken: string;
+  expiresIn: number;
+}
+type HandoffResult = HandoffSuccess | AuthFailure;
+
+/**
+ * Login on this (SEO) origin and get a short-lived single-use handoff token.
+ * We do NOT persist anything locally; the app origin exchanges the token for real auth.
+ */
+export async function loginHandoffApi(body: { email: string; password: string }): Promise<HandoffResult> {
+  try {
+    const res = await fetch(`${getClientApiBaseUrl()}/api/auth/handoff/login`, {
+      method: "POST",
+      headers: baseHeaders,
+      body: JSON.stringify(body),
+    });
+    const json = await res.json().catch(() => ({}));
+    if (res.ok && json?.success === true && json.data?.handoffToken) {
+      return { ok: true, handoffToken: json.data.handoffToken, expiresIn: json.data.expiresIn };
+    }
+    return { ok: false, error: json?.error?.message || `Request failed (${res.status})` };
+  } catch {
+    return { ok: false, error: "Unable to connect to server. Please try again." };
+  }
+}
+
+/**
+ * Base URL of the React app (different origin from this Next.js SEO site in dev).
+ * The app is mounted under /app/* — see optimus.Ink/vite.config.js `base`.
+ */
+export function getAppBaseUrl(): string {
+  const explicit = process.env.NEXT_PUBLIC_APP_URL;
+  if (explicit) return explicit.replace(/\/$/, "");
+  if (typeof window !== "undefined") {
+    const { protocol, hostname } = window.location;
+    return `${protocol}//${hostname}:5173`;
+  }
+  return "http://localhost:5173";
+}
+
+export function buildAppResolveUrl(handoffToken: string, next?: string): string {
+  const params = new URLSearchParams({ token: handoffToken });
+  if (next) params.set("next", next);
+  return `${getAppBaseUrl()}/app/auth/resolve?${params.toString()}`;
+}
+
 export function registerApi(body: { profileSlug: string; email: string; password: string }) {
   return postJson("/api/auth/register", body);
 }
@@ -77,9 +125,13 @@ export function persistAuth(user: unknown, tokens: unknown) {
   } catch {}
 }
 
+/**
+ * OAuth popup landing URL. Must live on the APP origin (not this SEO origin)
+ * so the popup can exchange the code and persist tokens on the app's
+ * localStorage — then signal this opener to redirect the top window to the app.
+ */
 export function getOAuthCallbackUrl(): string {
-  if (typeof window === "undefined") return "";
-  return `${window.location.origin}/app/auth/callback`;
+  return `${getAppBaseUrl()}/app/auth/callback`;
 }
 
 export function openOAuthPopup(url: string, providerId: string): Window | null {
