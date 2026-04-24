@@ -74,17 +74,17 @@ export async function loginHandoffApi(body: { email: string; password: string })
 }
 
 /**
- * Base URL of the React app (different origin from this Next.js SEO site in dev).
- * The app is mounted under /app/* — see optimus.Ink/vite.config.js `base`.
+ * Base URL of the React app (mounted at /app/* — see optimus.Ink/vite.config.js `base`).
+ * Set NEXT_PUBLIC_APP_URL explicitly for any environment where the app runs on a
+ * different origin from this SEO site (including local dev: http://localhost:5173).
+ * If unset, falls back to same-origin — correct when SEO and app share a domain
+ * behind a reverse proxy in prod.
  */
 export function getAppBaseUrl(): string {
   const explicit = process.env.NEXT_PUBLIC_APP_URL;
   if (explicit) return explicit.replace(/\/$/, "");
-  if (typeof window !== "undefined") {
-    const { protocol, hostname } = window.location;
-    return `${protocol}//${hostname}:5173`;
-  }
-  return "http://localhost:5173";
+  if (typeof window !== "undefined") return window.location.origin;
+  return "";
 }
 
 export function buildAppResolveUrl(handoffToken: string, next?: string): string {
