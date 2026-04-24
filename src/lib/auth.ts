@@ -75,15 +75,24 @@ export async function loginHandoffApi(body: { email: string; password: string })
 
 /**
  * Base URL of the React app (mounted at /app/* — see optimus.Ink/vite.config.js `base`).
- * Set NEXT_PUBLIC_APP_URL explicitly for any environment where the app runs on a
- * different origin from this SEO site (including local dev: http://localhost:5173).
- * If unset, falls back to same-origin — correct when SEO and app share a domain
- * behind a reverse proxy in prod.
+ *
+ * Resolution order:
+ *   1. NEXT_PUBLIC_APP_URL if set — use as-is (dev or prod override).
+ *   2. localhost dev → http://localhost:5173 (the Vite dev server). The SEO site
+ *      runs on :3009, so window.location.origin here would be the SEO origin,
+ *      which is wrong for the app callback URL.
+ *   3. Otherwise → window.location.origin. Correct for prod where SEO and app
+ *      share a domain behind a reverse proxy routing /app/* to the SPA.
  */
 export function getAppBaseUrl(): string {
   const explicit = process.env.NEXT_PUBLIC_APP_URL;
   if (explicit) return explicit.replace(/\/$/, "");
-  if (typeof window !== "undefined") return window.location.origin;
+  if (typeof window !== "undefined") {
+    const { hostname, protocol } = window.location;
+    const isLocalhost = hostname === "localhost" || hostname === "127.0.0.1";
+    if (isLocalhost) return `${protocol}//${hostname}:5173`;
+    return window.location.origin;
+  }
   return "";
 }
 
