@@ -7,7 +7,7 @@ const optimus: BrandConfig = {
   tagline: "Powered by Optimus",
   bioDomain: "askmybio.ai",
   siteUrl: "https://askmybio.ai",
-  spaUrl: "https://askmybio.ai",
+  spaUrl: "https://askmybio.ai/app",
   apiUrl: "https://api.askmybio.ai",
   favicon: "/fav.png",
   appleTouchIcon: "/fav.png",

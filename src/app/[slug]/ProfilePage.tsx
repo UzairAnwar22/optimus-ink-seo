@@ -13,8 +13,9 @@ export default function ProfilePage({ slug }: { slug: string }) {
   const [spaUrl, setSpaUrl] = useState("");
 
   useEffect(() => {
-    // Resolution: NEXT_PUBLIC_SPA_URL env > brand.spaUrl > same-origin (reverse proxy fallback)
-    const url = getSpaUrl() || window.location.origin;
+    // Resolution: NEXT_PUBLIC_SPA_URL env > brand.spaUrl > same-origin /app (reverse proxy fallback).
+    // Fallback must include /app — root would re-enter Next.js [slug] route → iframe recursion.
+    const url = getSpaUrl() || `${window.location.origin}/app`;
     setSpaUrl(`${url}/${slug}`);
   }, [slug]);
 

@@ -7,7 +7,7 @@ const mykiosk: BrandConfig = {
   tagline: "Powered by My Kiosk",
   bioDomain: "mykiosk.ai",
   siteUrl: "https://mykiosk.ai",
-  spaUrl: "https://mykiosk.ai",
+  spaUrl: "https://mykiosk.ai/app",
   apiUrl: "https://api.mykiosk.ai",
   favicon: "/mykiosk-fav.png",
   appleTouchIcon: "/mykiosk-fav.png",
