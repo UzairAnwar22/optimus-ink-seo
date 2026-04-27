@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
-import Image from "next/image";
 import brand from "@/config/brand";
+import { deriveAutoTheme } from "@/lib/theme";
 
 interface Props {
   slug: string;
@@ -15,6 +15,25 @@ interface Props {
   kbBaseUrl: string;
   kbApiKey: string;
   askAi: { aiName: string; questionPlaceholder: string; suggestedQuestions: string; textColor: string } | null;
+}
+
+// Mix two hex colors: returns rgba string with alpha applied to color a over b.
+function withAlpha(hex: string, alpha: number): string {
+  const m = (hex || "").match(/#?([0-9a-fA-F]{6})/);
+  if (!m) return hex;
+  const r = parseInt(m[1].slice(0, 2), 16);
+  const g = parseInt(m[1].slice(2, 4), 16);
+  const b = parseInt(m[1].slice(4, 6), 16);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
+function isHexDark(hex: string): boolean {
+  const m = (hex || "").match(/#?([0-9a-fA-F]{6})/);
+  if (!m) return false;
+  const r = parseInt(m[1].slice(0, 2), 16);
+  const g = parseInt(m[1].slice(2, 4), 16);
+  const b = parseInt(m[1].slice(4, 6), 16);
+  return (r * 0.299 + g * 0.587 + b * 0.114) < 128;
 }
 
 interface ChatMessage {
@@ -33,17 +52,13 @@ const SOCIALS = [
   { label: "FB", path: "M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z" },
 ];
 
-// ── Gradient from profile background ──
-function buildHeroGradient(bg: string): string {
-  if (!bg || bg === "#FBFAF8" || bg === "#ffffff" || bg === "#fff") {
-    return "linear-gradient(180deg, #f9c4c4 0%, #fdd5d5 15%, #fde8e8 35%, #fdf2f2 55%, #fefafa 75%, #ffffff 100%)";
-  }
-  // Extract hex
-  const m = bg.match(/#([0-9a-fA-F]{6})/);
-  if (!m) return `linear-gradient(180deg, ${bg} 0%, #ffffff 100%)`;
-  const hex = `#${m[1]}`;
-  // Lighten for gradient stops
-  return `linear-gradient(180deg, ${hex}40 0%, ${hex}25 25%, ${hex}10 50%, #ffffff 100%)`;
+// ── Theme gradient using profile bg + accent (no fade-to-white) ──
+function buildHeroGradient(bg: string, accent: string, dark: boolean): string {
+  const baseBg = bg || "#FBFAF8";
+  // Subtle accent wash at top fading into the page bg, so the theme reads through.
+  const accentTop = withAlpha(accent, dark ? 0.22 : 0.32);
+  const accentMid = withAlpha(accent, dark ? 0.10 : 0.14);
+  return `linear-gradient(180deg, ${accentTop} 0%, ${accentMid} 35%, ${baseBg} 100%)`;
 }
 
 // ── Visitor ID ──
@@ -66,7 +81,26 @@ export default function AskPage({ slug, name, avatar, bio, backgroundColor, kbHa
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const abortRef = useRef<AbortController | null>(null);
 
-  const heroGradient = buildHeroGradient(backgroundColor);
+  // ── Theme tokens derived from profile bg (matches ProfilePage SPA palette) ──
+  // askAi.textColor wins if explicitly set in admin, otherwise fall back to derived accent.
+  const autoTheme = deriveAutoTheme(backgroundColor);
+  const accent = (askAi?.textColor && /^#[0-9a-fA-F]{6}$/.test(askAi.textColor)) ? askAi.textColor : autoTheme.accentColor;
+  const isDark = isHexDark(backgroundColor);
+  const textColor = autoTheme.textColor;
+  const mutedText = isDark ? "rgba(255,255,255,0.7)" : "rgba(17,24,39,0.7)";
+  const subtleText = isDark ? "rgba(255,255,255,0.55)" : "rgba(17,24,39,0.55)";
+  const cardBg = isDark ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.85)";
+  const cardBorder = isDark ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.06)";
+  const chipBg = isDark ? "rgba(255,255,255,0.08)" : "#fff";
+  const chipBorder = isDark ? "rgba(255,255,255,0.18)" : "#e5e7eb";
+  const chipHoverBg = isDark ? "rgba(255,255,255,0.14)" : "#f9fafb";
+  const userBubbleBg = accent;
+  const userBubbleText = isHexDark(accent) ? "#ffffff" : "#111827";
+  const assistantBubbleBg = isDark ? "rgba(255,255,255,0.10)" : "#F3F4F6";
+  const sendDisabledBg = withAlpha(accent, 0.4);
+  const headerBg = isDark ? "rgba(0,0,0,0.4)" : "rgba(255,255,255,0.7)";
+
+  const heroGradient = buildHeroGradient(backgroundColor, accent, isDark);
 
   // Hint chips — fetched from Knowledge Base /api/creator/{handle} (hint_chips field)
   // No localStorage — every browser/visitor gets fresh chips for this creator.
@@ -115,15 +149,31 @@ export default function AskPage({ slug, name, avatar, bio, backgroundColor, kbHa
     if (!trimmed || isTyping) return;
 
     const creator = kbHandle || slug;
-    const visitorId = getVisitorId();
+    // Touch visitor id so it persists for the session (used by analytics on the KB side).
+    getVisitorId();
 
-    // Add user message
-    setMessages((prev) => [...prev, { role: "user", content: trimmed }]);
+    // Push user message AND empty assistant placeholder synchronously, so the
+    // 3-dot loader (which keys off the trailing empty assistant message) shows
+    // immediately during the network wait — not only once tokens start streaming.
+    setMessages((prev) => [
+      ...prev,
+      { role: "user", content: trimmed },
+      { role: "assistant", content: "" },
+    ]);
     setChatInput("");
     setIsTyping(true);
 
-    // Build history
-    const history = messages.slice(-6).map((m) => ({ role: m.role, content: m.content }));
+    // Helper: replace the trailing empty assistant placeholder.
+    const updateAssistant = (patch: Partial<ChatMessage>) => {
+      setMessages((prev) => {
+        const updated = [...prev];
+        const last = updated[updated.length - 1];
+        if (last && last.role === "assistant") {
+          updated[updated.length - 1] = { ...last, ...patch };
+        }
+        return updated;
+      });
+    };
 
     try {
       abortRef.current = new AbortController();
@@ -143,8 +193,7 @@ export default function AskPage({ slug, name, avatar, bio, backgroundColor, kbHa
       });
 
       if (!res.ok) {
-        setMessages((prev) => [...prev, { role: "assistant", content: "Sorry, something went wrong. Please try again." }]);
-        setIsTyping(false);
+        updateAssistant({ content: "Sorry, something went wrong. Please try again." });
         return;
       }
 
@@ -157,9 +206,6 @@ export default function AskPage({ slug, name, avatar, bio, backgroundColor, kbHa
         const decoder = new TextDecoder();
         let fullContent = "";
         let products: ChatMessage["products"] = [];
-
-        // Add empty assistant message
-        setMessages((prev) => [...prev, { role: "assistant", content: "" }]);
 
         while (true) {
           const { done, value } = await reader.read();
@@ -174,26 +220,14 @@ export default function AskPage({ slug, name, avatar, bio, backgroundColor, kbHa
               const data = JSON.parse(jsonStr);
               if (data.type === "token") {
                 fullContent += data.content || "";
-                setMessages((prev) => {
-                  const updated = [...prev];
-                  updated[updated.length - 1] = { ...updated[updated.length - 1], content: fullContent };
-                  return updated;
-                });
+                updateAssistant({ content: fullContent });
               } else if (data.type === "done") {
                 fullContent = data.content || fullContent;
                 if (data.products) products = data.products;
-                setMessages((prev) => {
-                  const updated = [...prev];
-                  updated[updated.length - 1] = { ...updated[updated.length - 1], content: fullContent, products: products?.length ? products : updated[updated.length - 1].products };
-                  return updated;
-                });
+                updateAssistant({ content: fullContent, products: products?.length ? products : undefined });
               } else if (data.type === "products" && data.products) {
                 products = data.products;
-                setMessages((prev) => {
-                  const updated = [...prev];
-                  updated[updated.length - 1] = { ...updated[updated.length - 1], products };
-                  return updated;
-                });
+                updateAssistant({ products });
               }
             } catch { /* skip malformed */ }
           }
@@ -201,27 +235,23 @@ export default function AskPage({ slug, name, avatar, bio, backgroundColor, kbHa
 
         // Final products update
         if (products && products.length > 0) {
-          setMessages((prev) => {
-            const updated = [...prev];
-            updated[updated.length - 1] = { ...updated[updated.length - 1], products };
-            return updated;
-          });
+          updateAssistant({ products });
         }
       } else {
         // Regular JSON response (non-streaming)
         const data = await res.json();
         const responseText = data.response || data.message || data.content || "Sorry, I could not process that.";
         const products = data.products || [];
-        setMessages((prev) => [...prev, { role: "assistant", content: responseText, products: products.length ? products : undefined }]);
+        updateAssistant({ content: responseText, products: products.length ? products : undefined });
       }
     } catch (err) {
       if ((err as Error).name !== "AbortError") {
-        setMessages((prev) => [...prev, { role: "assistant", content: "Sorry, something went wrong. Please try again." }]);
+        updateAssistant({ content: "Sorry, something went wrong. Please try again." });
       }
     } finally {
       setIsTyping(false);
     }
-  }, [isTyping, messages, kbHandle, slug, sessionId, kbBaseUrl, kbApiKey]);
+  }, [isTyping, kbHandle, slug, sessionId, kbBaseUrl, kbApiKey]);
 
   const hasMessages = messages.length > 0;
 
@@ -243,37 +273,37 @@ export default function AskPage({ slug, name, avatar, bio, backgroundColor, kbHa
           {/* Header */}
           <header style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "20px 36px", maxWidth: 1200, margin: "0 auto", width: "100%" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <div style={{ width: 26, height: 26, borderRadius: 6, background: "#ef4444", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <span style={{ color: "#fff", fontSize: 13, fontWeight: 800 }}>K</span>
+              <div style={{ width: 26, height: 26, borderRadius: 6, background: accent, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <span style={{ color: userBubbleText, fontSize: 13, fontWeight: 800 }}>{name.charAt(0).toUpperCase()}</span>
               </div>
-              <span style={{ fontSize: 14, fontWeight: 700, color: "#1f2937" }}>{name} AI</span>
+              <span style={{ fontSize: 14, fontWeight: 700, color: textColor }}>{name} AI</span>
             </div>
             <nav style={{ display: "flex", gap: 28 }}>
               {NAV_LINKS.map((l) => (
-                <a key={l} href="#" style={{ fontSize: 13, color: "#4b5563", textDecoration: "none", fontWeight: 500 }}>{l}</a>
+                <a key={l} href="#" style={{ fontSize: 13, color: mutedText, textDecoration: "none", fontWeight: 500 }}>{l}</a>
               ))}
             </nav>
           </header>
 
           {/* Hero */}
           <section style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "0 24px 60px", textAlign: "center" }}>
-            <div style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "5px 16px", borderRadius: 50, border: "1px solid rgba(239,68,68,0.15)", background: "rgba(255,255,255,0.55)", fontSize: 11, fontWeight: 500, color: "#6b7280", marginBottom: 32, backdropFilter: "blur(6px)" }}>
-              <span style={{ width: 5, height: 5, borderRadius: "50%", background: "#ef4444" }} />
+            <div style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "5px 16px", borderRadius: 50, border: `1px solid ${withAlpha(accent, 0.25)}`, background: cardBg, fontSize: 11, fontWeight: 500, color: mutedText, marginBottom: 32, backdropFilter: "blur(6px)" }}>
+              <span style={{ width: 5, height: 5, borderRadius: "50%", background: accent }} />
               Your Personal Style Editor
             </div>
-            <h1 style={{ fontSize: 52, fontWeight: 800, color: "#111827", margin: "0 0 8px", lineHeight: 1.12, letterSpacing: "-0.8px" }}>
+            <h1 style={{ fontSize: 52, fontWeight: 800, color: textColor, margin: "0 0 8px", lineHeight: 1.12, letterSpacing: "-0.8px" }}>
               Hi, I&apos;m {name} AI
             </h1>
-            <p style={{ fontSize: 38, fontWeight: 600, margin: "0 0 48px", background: "linear-gradient(90deg, #ef4444, #f97316)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", fontStyle: "italic", letterSpacing: "-0.3px" }}>
+            <p style={{ fontSize: 38, fontWeight: 600, margin: "0 0 48px", background: `linear-gradient(90deg, ${accent}, ${withAlpha(accent, 0.7)})`, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", fontStyle: "italic", letterSpacing: "-0.3px" }}>
               How can I help you today?
             </p>
 
             {/* Initial chat widget — card with input only */}
             <div style={{
               width: "100%", maxWidth: 540,
-              background: "rgba(255,255,255,0.85)", borderRadius: 20,
-              border: "1px solid rgba(0,0,0,0.06)",
-              boxShadow: "0 12px 48px rgba(0,0,0,0.06)",
+              background: cardBg, borderRadius: 20,
+              border: `1px solid ${cardBorder}`,
+              boxShadow: isDark ? "0 12px 48px rgba(0,0,0,0.4)" : "0 12px 48px rgba(0,0,0,0.06)",
               backdropFilter: "blur(12px)",
               padding: "20px 22px 16px",
             }}>
@@ -285,7 +315,7 @@ export default function AskPage({ slug, name, avatar, bio, backgroundColor, kbHa
                   placeholder={askAi?.questionPlaceholder || `Ask ${name} about brands, outfit advice, or product reviews...`}
                   rows={2}
                   disabled={isTyping}
-                  style={{ width: "100%", border: "none", outline: "none", fontSize: 14, padding: 0, background: "transparent", color: "#111827", fontFamily: "inherit", resize: "none", lineHeight: 1.6 }}
+                  style={{ width: "100%", border: "none", outline: "none", fontSize: 14, padding: 0, background: "transparent", color: textColor, fontFamily: "inherit", resize: "none", lineHeight: 1.6 }}
                 />
                 {/* Chip row — wraps to multiple lines, contained within card */}
                 {chips.length > 0 && (
@@ -298,14 +328,14 @@ export default function AskPage({ slug, name, avatar, bio, backgroundColor, kbHa
                         title={c}
                         style={{
                           padding: "7px 14px", borderRadius: 50,
-                          border: "1px solid #e5e7eb", background: "#fff",
-                          fontSize: 12, color: "#374151", fontWeight: 500,
+                          border: `1px solid ${chipBorder}`, background: chipBg,
+                          fontSize: 12, color: mutedText, fontWeight: 500,
                           cursor: "pointer", fontFamily: "inherit",
                           whiteSpace: "nowrap",
                           transition: "background 0.15s, border-color 0.15s",
                         }}
-                        onMouseEnter={(e) => { e.currentTarget.style.background = "#f9fafb"; e.currentTarget.style.borderColor = "#d1d5db"; }}
-                        onMouseLeave={(e) => { e.currentTarget.style.background = "#fff"; e.currentTarget.style.borderColor = "#e5e7eb"; }}
+                        onMouseEnter={(e) => { e.currentTarget.style.background = chipHoverBg; e.currentTarget.style.borderColor = withAlpha(accent, 0.4); }}
+                        onMouseLeave={(e) => { e.currentTarget.style.background = chipBg; e.currentTarget.style.borderColor = chipBorder; }}
                       >
                         {c}
                       </button>
@@ -315,12 +345,12 @@ export default function AskPage({ slug, name, avatar, bio, backgroundColor, kbHa
                 {/* Action row — attach + send */}
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 4, marginTop: 8 }}>
                   <div style={{ width: 34, height: 34, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
-                    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke={subtleText} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                       <path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48" />
                     </svg>
                   </div>
-                  <button type="submit" disabled={isTyping || !chatInput.trim()} style={{ width: 38, height: 38, borderRadius: "50%", border: "none", background: isTyping || !chatInput.trim() ? "#fca5a5" : "#ef4444", cursor: isTyping ? "not-allowed" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <button type="submit" disabled={isTyping || !chatInput.trim()} style={{ width: 38, height: 38, borderRadius: "50%", border: "none", background: isTyping || !chatInput.trim() ? sendDisabledBg : accent, cursor: isTyping ? "not-allowed" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={userBubbleText} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                       <path d="M22 2L11 13" /><path d="M22 2L15 22L11 13L2 9L22 2Z" />
                     </svg>
                   </button>
@@ -335,23 +365,23 @@ export default function AskPage({ slug, name, avatar, bio, backgroundColor, kbHa
       {hasMessages && (
         <>
           {/* Fixed top header */}
-          <header style={{ flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 36px", borderBottom: "1px solid rgba(0,0,0,0.06)", background: "rgba(255,255,255,0.7)", backdropFilter: "blur(12px)" }}>
+          <header style={{ flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 36px", borderBottom: `1px solid ${cardBorder}`, background: headerBg, backdropFilter: "blur(12px)" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <div style={{ width: 26, height: 26, borderRadius: 6, background: "#ef4444", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <span style={{ color: "#fff", fontSize: 13, fontWeight: 800 }}>K</span>
+              <div style={{ width: 26, height: 26, borderRadius: 6, background: accent, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <span style={{ color: userBubbleText, fontSize: 13, fontWeight: 800 }}>{name.charAt(0).toUpperCase()}</span>
               </div>
-              <span style={{ fontSize: 14, fontWeight: 700, color: "#1f2937" }}>{name} AI</span>
+              <span style={{ fontSize: 14, fontWeight: 700, color: textColor }}>{name} AI</span>
             </div>
             <nav style={{ display: "flex", gap: 28 }}>
               {NAV_LINKS.map((l) => (
-                <a key={l} href="#" style={{ fontSize: 13, color: "#4b5563", textDecoration: "none", fontWeight: 500 }}>{l}</a>
+                <a key={l} href="#" style={{ fontSize: 13, color: mutedText, textDecoration: "none", fontWeight: 500 }}>{l}</a>
               ))}
             </nav>
           </header>
 
           {/* Scrollable messages area — only this scrolls */}
           <div style={{ flex: 1, overflowY: "auto", overflowX: "hidden", display: "flex", justifyContent: "center" }}>
-            <div style={{ width: "100%", maxWidth: 760, padding: "24px 24px 8px", display: "flex", flexDirection: "column" }}>
+            <div style={{ width: "100%", maxWidth: 760, padding: "24px 24px 32px", display: "flex", flexDirection: "column" }}>
                 {messages.map((msg, i) => (
                   <div key={i} style={{ marginBottom: 12 }}>
                     {/* User bubble (right) */}
@@ -360,7 +390,7 @@ export default function AskPage({ slug, name, avatar, bio, backgroundColor, kbHa
                         <div style={{
                           maxWidth: "78%", padding: "10px 14px", borderRadius: 12,
                           fontSize: 14, lineHeight: 1.6, whiteSpace: "pre-wrap", wordBreak: "break-word",
-                          background: "#111827", color: "#fff",
+                          background: userBubbleBg, color: userBubbleText,
                         }}>
                           {msg.content}
                         </div>
@@ -374,7 +404,7 @@ export default function AskPage({ slug, name, avatar, bio, backgroundColor, kbHa
                           {avatar ? (
                             <img src={avatar} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                           ) : (
-                            <div style={{ width: 28, height: 28, borderRadius: "50%", background: "#ef4444", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, color: "#fff" }}>{name.charAt(0)}</div>
+                            <div style={{ width: 28, height: 28, borderRadius: "50%", background: accent, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, color: userBubbleText }}>{name.charAt(0)}</div>
                           )}
                         </div>
                         <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 8 }}>
@@ -383,7 +413,7 @@ export default function AskPage({ slug, name, avatar, bio, backgroundColor, kbHa
                             <div style={{
                               padding: "10px 14px", borderRadius: 12,
                               fontSize: 14, lineHeight: 1.6, whiteSpace: "pre-wrap", wordBreak: "break-word",
-                              background: "#F3F4F6", color: "#111827",
+                              background: assistantBubbleBg, color: textColor,
                               alignSelf: "flex-start", maxWidth: "100%",
                             }}>
                               {msg.content}
@@ -393,12 +423,12 @@ export default function AskPage({ slug, name, avatar, bio, backgroundColor, kbHa
                           {!msg.content && isTyping && i === messages.length - 1 && (
                             <div style={{
                               padding: "12px 14px", borderRadius: 12,
-                              background: "#F3F4F6",
+                              background: assistantBubbleBg,
                               alignSelf: "flex-start",
                               display: "inline-flex", alignItems: "center", gap: 5,
                             }}>
                               {[0, 1, 2].map((d) => (
-                                <span key={d} className="ask-dot" style={{ width: 7, height: 7, borderRadius: "50%", background: "#9ca3af", display: "inline-block", animationDelay: `${d * 0.18}s` }} />
+                                <span key={d} className="ask-dot" style={{ width: 7, height: 7, borderRadius: "50%", background: subtleText, display: "inline-block", animationDelay: `${d * 0.18}s` }} />
                               ))}
                             </div>
                           )}
@@ -410,16 +440,16 @@ export default function AskPage({ slug, name, avatar, bio, backgroundColor, kbHa
                                 const rawImg = p?.image_url || "";
                                 const imgSrc = rawImg && /^https?:\/\//i.test(rawImg) ? rawImg : rawImg ? `https://api-v1.kevo.store${rawImg.startsWith("/") ? "" : "/"}${rawImg}` : "";
                                 return (
-                                  <div key={pi} style={{ border: "1px solid #E5E7EB", borderRadius: 10, overflow: "hidden", background: "#fff", display: "flex", flexDirection: "column" }}>
-                                    <div style={{ background: "#F8FAFC", display: "grid", placeItems: "center", aspectRatio: "1/1" }}>
-                                      {imgSrc ? <img src={imgSrc} alt={p?.title || ""} style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <div style={{ fontSize: 12, color: "#9CA3AF" }}>No image</div>}
+                                  <div key={pi} style={{ border: `1px solid ${chipBorder}`, borderRadius: 10, overflow: "hidden", background: chipBg, display: "flex", flexDirection: "column" }}>
+                                    <div style={{ background: assistantBubbleBg, display: "grid", placeItems: "center", aspectRatio: "1/1" }}>
+                                      {imgSrc ? <img src={imgSrc} alt={p?.title || ""} style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <div style={{ fontSize: 12, color: subtleText }}>No image</div>}
                                     </div>
                                     <div style={{ padding: 8, display: "flex", flexDirection: "column", gap: 4, flex: 1 }}>
-                                      <div style={{ fontSize: 10, color: "#6B7280" }}>{p?.brand || (() => { try { return new URL(p?.url || "").hostname; } catch { return ""; } })()}</div>
-                                      <div style={{ fontSize: 13, fontWeight: 700, color: "#111827", lineHeight: 1.3 }}>{p?.title || "Product"}</div>
-                                      <div style={{ fontSize: 18, fontWeight: 800, color: "#111827" }}>{p?.price || ""}</div>
+                                      <div style={{ fontSize: 10, color: subtleText }}>{p?.brand || (() => { try { return new URL(p?.url || "").hostname; } catch { return ""; } })()}</div>
+                                      <div style={{ fontSize: 13, fontWeight: 700, color: textColor, lineHeight: 1.3 }}>{p?.title || "Product"}</div>
+                                      <div style={{ fontSize: 18, fontWeight: 800, color: accent }}>{p?.price || ""}</div>
                                       {p?.url && (
-                                        <a href={p.url} target="_blank" rel="noreferrer" style={{ marginTop: "auto", textDecoration: "none", display: "block", textAlign: "center", background: "#111827", color: "#fff", fontWeight: 700, borderRadius: 8, padding: "8px 10px", fontSize: 13 }}>
+                                        <a href={p.url} target="_blank" rel="noreferrer" style={{ marginTop: "auto", textDecoration: "none", display: "block", textAlign: "center", background: accent, color: userBubbleText, fontWeight: 700, borderRadius: 8, padding: "8px 10px", fontSize: 13 }}>
                                           Shop Now
                                         </a>
                                       )}
@@ -434,10 +464,10 @@ export default function AskPage({ slug, name, avatar, bio, backgroundColor, kbHa
                           {msg.content && !(isTyping && i === messages.length - 1) && (
                             <div style={{ display: "flex", gap: 2 }}>
                               <button type="button" onClick={() => setMessages((prev) => prev.map((m, mi) => mi === i ? { ...m, feedback: m.feedback === "up" ? null : "up" } : m))} style={{ padding: 3, border: "none", background: "none", cursor: "pointer", opacity: msg.feedback === "up" ? 1 : 0.35, display: "flex" }}>
-                                <svg width="13" height="13" viewBox="0 0 24 24" fill={msg.feedback === "up" ? "#111827" : "none"} stroke="#111827" strokeWidth="2"><path d="M14 9V5a3 3 0 00-3-3l-4 9v11h11.28a2 2 0 002-1.7l1.38-9a2 2 0 00-2-2.3H14zM7 22H4a2 2 0 01-2-2v-7a2 2 0 012-2h3" /></svg>
+                                <svg width="13" height="13" viewBox="0 0 24 24" fill={msg.feedback === "up" ? textColor : "none"} stroke={textColor} strokeWidth="2"><path d="M14 9V5a3 3 0 00-3-3l-4 9v11h11.28a2 2 0 002-1.7l1.38-9a2 2 0 00-2-2.3H14zM7 22H4a2 2 0 01-2-2v-7a2 2 0 012-2h3" /></svg>
                               </button>
                               <button type="button" onClick={() => setMessages((prev) => prev.map((m, mi) => mi === i ? { ...m, feedback: m.feedback === "down" ? null : "down" } : m))} style={{ padding: 3, border: "none", background: "none", cursor: "pointer", opacity: msg.feedback === "down" ? 1 : 0.35, display: "flex" }}>
-                                <svg width="13" height="13" viewBox="0 0 24 24" fill={msg.feedback === "down" ? "#111827" : "none"} stroke="#111827" strokeWidth="2"><path d="M10 15v4a3 3 0 003 3l4-9V2H5.72a2 2 0 00-2 1.7l-1.38 9a2 2 0 002 2.3H10zM17 2h2.67A2.31 2.31 0 0122 4v7a2.31 2.31 0 01-2.33 2H17" /></svg>
+                                <svg width="13" height="13" viewBox="0 0 24 24" fill={msg.feedback === "down" ? textColor : "none"} stroke={textColor} strokeWidth="2"><path d="M10 15v4a3 3 0 003 3l4-9V2H5.72a2 2 0 00-2 1.7l-1.38 9a2 2 0 002 2.3H10zM17 2h2.67A2.31 2.31 0 0122 4v7a2.31 2.31 0 01-2.33 2H17" /></svg>
                               </button>
                             </div>
                           )}
@@ -451,14 +481,14 @@ export default function AskPage({ slug, name, avatar, bio, backgroundColor, kbHa
           </div>
 
           {/* Fixed input bar at bottom of viewport */}
-          <div style={{ flexShrink: 0, borderTop: "1px solid rgba(0,0,0,0.06)", background: "rgba(255,255,255,0.7)", backdropFilter: "blur(12px)", padding: "12px 24px 16px" }}>
+          <div style={{ flexShrink: 0, borderTop: `1px solid ${cardBorder}`, background: headerBg, backdropFilter: "blur(12px)", padding: "20px 24px 24px" }}>
             <form
               onSubmit={(e) => { e.preventDefault(); sendMessage(chatInput); }}
               style={{
                 width: "100%", maxWidth: 760, margin: "0 auto",
-                background: "#fff", borderRadius: 16,
-                border: "1px solid #e5e7eb",
-                boxShadow: "0 2px 12px rgba(0,0,0,0.04)",
+                background: cardBg, borderRadius: 16,
+                border: `1px solid ${cardBorder}`,
+                boxShadow: isDark ? "0 2px 12px rgba(0,0,0,0.3)" : "0 2px 12px rgba(0,0,0,0.04)",
                 padding: "12px 16px",
               }}
             >
@@ -469,7 +499,7 @@ export default function AskPage({ slug, name, avatar, bio, backgroundColor, kbHa
                 placeholder={askAi?.questionPlaceholder || `Ask ${name} about brands, outfit advice, or product reviews...`}
                 rows={1}
                 disabled={isTyping}
-                style={{ width: "100%", border: "none", outline: "none", fontSize: 14, padding: 0, background: "transparent", color: "#111827", fontFamily: "inherit", resize: "none", lineHeight: 1.6 }}
+                style={{ width: "100%", border: "none", outline: "none", fontSize: 14, padding: 0, background: "transparent", color: textColor, fontFamily: "inherit", resize: "none", lineHeight: 1.6 }}
               />
               {/* Chips row — wraps to multiple lines, contained within card */}
               {chips.length > 0 && (
@@ -482,14 +512,14 @@ export default function AskPage({ slug, name, avatar, bio, backgroundColor, kbHa
                       title={c}
                       style={{
                         padding: "7px 14px", borderRadius: 50,
-                        border: "1px solid #e5e7eb", background: "#fff",
-                        fontSize: 12, color: "#374151", fontWeight: 500,
+                        border: `1px solid ${chipBorder}`, background: chipBg,
+                        fontSize: 12, color: mutedText, fontWeight: 500,
                         cursor: "pointer", fontFamily: "inherit",
                         whiteSpace: "nowrap",
                         transition: "background 0.15s, border-color 0.15s",
                       }}
-                      onMouseEnter={(e) => { e.currentTarget.style.background = "#f9fafb"; e.currentTarget.style.borderColor = "#d1d5db"; }}
-                      onMouseLeave={(e) => { e.currentTarget.style.background = "#fff"; e.currentTarget.style.borderColor = "#e5e7eb"; }}
+                      onMouseEnter={(e) => { e.currentTarget.style.background = chipHoverBg; e.currentTarget.style.borderColor = withAlpha(accent, 0.4); }}
+                      onMouseLeave={(e) => { e.currentTarget.style.background = chipBg; e.currentTarget.style.borderColor = chipBorder; }}
                     >
                       {c}
                     </button>
@@ -499,12 +529,12 @@ export default function AskPage({ slug, name, avatar, bio, backgroundColor, kbHa
               {/* Action row — attach + send (right-aligned) */}
               <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 4, marginTop: 8 }}>
                 <div style={{ width: 34, height: 34, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
-                  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke={subtleText} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48" />
                   </svg>
                 </div>
-                <button type="submit" disabled={isTyping || !chatInput.trim()} style={{ width: 38, height: 38, borderRadius: "50%", border: "none", background: isTyping || !chatInput.trim() ? "#fca5a5" : "#ef4444", cursor: isTyping ? "not-allowed" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <button type="submit" disabled={isTyping || !chatInput.trim()} style={{ width: 38, height: 38, borderRadius: "50%", border: "none", background: isTyping || !chatInput.trim() ? sendDisabledBg : accent, cursor: isTyping ? "not-allowed" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={userBubbleText} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M22 2L11 13" /><path d="M22 2L15 22L11 13L2 9L22 2Z" />
                   </svg>
                 </button>
@@ -526,36 +556,36 @@ export default function AskPage({ slug, name, avatar, bio, backgroundColor, kbHa
 
       {/* ══ FOOTER (only shown on hero state, hidden in chat mode) ══ */}
       {!hasMessages && (
-        <footer style={{ flexShrink: 0, background: "#f8f8f8", borderTop: "1px solid #e5e7eb", padding: "32px 24px 20px" }}>
+        <footer style={{ flexShrink: 0, background: isDark ? withAlpha("#000000", 0.4) : "#f8f8f8", borderTop: `1px solid ${cardBorder}`, padding: "32px 24px 20px" }}>
           <div style={{ maxWidth: 1000, margin: "0 auto" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 24 }}>
               <div>
                 <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
-                  <div style={{ width: 32, height: 32, borderRadius: 8, background: "#ef4444", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                    <span style={{ color: "#fff", fontSize: 14, fontWeight: 800 }}>K</span>
+                  <div style={{ width: 32, height: 32, borderRadius: 8, background: accent, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    <span style={{ color: userBubbleText, fontSize: 14, fontWeight: 800 }}>{name.charAt(0).toUpperCase()}</span>
                   </div>
-                  <span style={{ fontSize: 22, fontWeight: 900, color: "#111827", letterSpacing: "-0.5px" }}>kevo.</span>
+                  <span style={{ fontSize: 22, fontWeight: 900, color: textColor, letterSpacing: "-0.5px" }}>{brand.shortName.toLowerCase()}.</span>
                 </div>
-                <div style={{ fontSize: 12, color: "#6b7280", marginBottom: 14 }}>From Berlin. With <span style={{ color: "#ef4444" }}>&#10084;</span></div>
+                <div style={{ fontSize: 12, color: mutedText, marginBottom: 14 }}>From Berlin. With <span style={{ color: accent }}>&#10084;</span></div>
                 <div style={{ display: "flex", gap: 8 }}>
                   {SOCIALS.map((s) => (
-                    <a key={s.label} href="#" style={{ width: 32, height: 32, borderRadius: "50%", border: "1.5px solid #d1d5db", display: "flex", alignItems: "center", justifyContent: "center", textDecoration: "none" }}>
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="#374151"><path d={s.path} /></svg>
+                    <a key={s.label} href="#" style={{ width: 32, height: 32, borderRadius: "50%", border: `1.5px solid ${chipBorder}`, display: "flex", alignItems: "center", justifyContent: "center", textDecoration: "none" }}>
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill={mutedText}><path d={s.path} /></svg>
                     </a>
                   ))}
                 </div>
               </div>
               <div>
-                <div style={{ fontSize: 12, fontWeight: 700, color: "#111827", marginBottom: 10, letterSpacing: 0.3 }}>COMPANY</div>
+                <div style={{ fontSize: 12, fontWeight: 700, color: textColor, marginBottom: 10, letterSpacing: 0.3 }}>COMPANY</div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                  <a href="#" style={{ fontSize: 13, color: "#374151", textDecoration: "none" }}>Contact</a>
-                  <a href="#" style={{ fontSize: 13, color: "#374151", textDecoration: "none" }}>Blog</a>
+                  <a href="#" style={{ fontSize: 13, color: mutedText, textDecoration: "none" }}>Contact</a>
+                  <a href="#" style={{ fontSize: 13, color: mutedText, textDecoration: "none" }}>Blog</a>
                 </div>
               </div>
             </div>
-            <div style={{ borderTop: "1px solid #e5e7eb", paddingTop: 14, marginTop: 16, display: "flex", gap: 16 }}>
-              <a href="https://kevo.store/privacy-policy" target="_blank" rel="noopener noreferrer" style={{ fontSize: 11, color: "#9ca3af", textDecoration: "none" }}>Terms &amp; Conditions</a>
-              <a href="https://kevo.store/privacy-policy" target="_blank" rel="noopener noreferrer" style={{ fontSize: 11, color: "#9ca3af", textDecoration: "none" }}>Privacy Policy</a>
+            <div style={{ borderTop: `1px solid ${cardBorder}`, paddingTop: 14, marginTop: 16, display: "flex", gap: 16 }}>
+              <a href="https://kevo.store/privacy-policy" target="_blank" rel="noopener noreferrer" style={{ fontSize: 11, color: subtleText, textDecoration: "none" }}>Terms &amp; Conditions</a>
+              <a href="https://kevo.store/privacy-policy" target="_blank" rel="noopener noreferrer" style={{ fontSize: 11, color: subtleText, textDecoration: "none" }}>Privacy Policy</a>
             </div>
           </div>
         </footer>
