@@ -9,6 +9,8 @@ const kevo: BrandConfig = {
   siteUrl: "https://kevo.store",
   spaUrl: "https://kevo.store/app",
   apiUrl: "https://api.kevo.store",
+  logo: "/kevo-logo.png",
+  icon: "/kevo-icon.png",
   favicon: "/kevo-fav.png",
   appleTouchIcon: "/kevo-fav.png",
   description: "Create your Kevo bio link page. Share your profile, products, and content in one place.",

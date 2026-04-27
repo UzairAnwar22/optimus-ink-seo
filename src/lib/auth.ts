@@ -106,6 +106,38 @@ export function registerApi(body: { profileSlug: string; email: string; password
   return postJson("/api/auth/register", body);
 }
 
+// POST /api/auth/forgot-password — request a password reset email (public).
+export async function forgotPassword(body: { email: string }): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const res = await fetch(`${getClientApiBaseUrl()}/api/auth/forgot-password`, {
+      method: "POST",
+      headers: baseHeaders,
+      body: JSON.stringify(body),
+    });
+    const json = await res.json().catch(() => ({}));
+    if (res.ok && json?.success === true) return { ok: true };
+    return { ok: false, error: json?.error?.message || `Request failed (${res.status})` };
+  } catch {
+    return { ok: false, error: "Unable to connect to server. Please try again." };
+  }
+}
+
+// POST /api/auth/reset-password — reset password using token from email (public).
+export async function resetPassword(body: { token: string; userId: number; newPassword: string }): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const res = await fetch(`${getClientApiBaseUrl()}/api/auth/reset-password`, {
+      method: "POST",
+      headers: baseHeaders,
+      body: JSON.stringify(body),
+    });
+    const json = await res.json().catch(() => ({}));
+    if (res.ok && json?.success === true) return { ok: true };
+    return { ok: false, error: json?.error?.message || `Request failed (${res.status})` };
+  } catch {
+    return { ok: false, error: "Unable to connect to server. Please try again." };
+  }
+}
+
 export async function getProviderAuthUrl(providerId: string, redirectUrl: string) {
   try {
     const res = await fetch(

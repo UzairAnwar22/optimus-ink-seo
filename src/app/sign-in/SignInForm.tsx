@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import brand from "@/config/brand";
 import {
   loginHandoffApi,
@@ -102,7 +103,9 @@ export default function SignInForm() {
       <style>{`
         .si-wrap { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 28px 16px; background: #f5f5f5; }
         .si-card { width: 100%; max-width: 420px; background: #fff; border-radius: 16px; box-shadow: 0 4px 24px rgba(0,0,0,0.06); padding: 40px 36px 32px; }
-        .si-brand { text-align: center; margin-bottom: 20px; font-weight: 700; font-size: 22px; color: ${brand.colors.primary}; }
+        .si-brand { display: flex; justify-content: center; align-items: center; margin-bottom: 20px; }
+        .si-brand img { height: 36px; width: auto; max-width: 200px; object-fit: contain; }
+        .si-brand-text { font-weight: 700; font-size: 22px; color: ${brand.colors.primary}; }
         .si-title { margin: 0; text-align: center; font-size: 22px; font-weight: 700; color: #111827; }
         .si-subtitle { margin: 8px 0 24px; text-align: center; font-size: 14px; color: #6b7280; }
         .si-form { display: flex; flex-direction: column; gap: 14px; }
@@ -127,7 +130,13 @@ export default function SignInForm() {
       `}</style>
       <div className="si-wrap">
         <div className="si-card">
-          <div className="si-brand">{brand.name}</div>
+          <div className="si-brand">
+            {brand.logo ? (
+              <img src={brand.logo} alt={brand.name} />
+            ) : (
+              <span className="si-brand-text">{brand.name}</span>
+            )}
+          </div>
           <h2 className="si-title">Sign In</h2>
           <div className="si-subtitle">Welcome back! Sign in to your account.</div>
 
@@ -150,7 +159,7 @@ export default function SignInForm() {
           </form>
 
           <div className="si-forgot">
-            <a href="/app/forgot-password">Forgot password?</a>
+            <Link href="/forgot-password">Forgot password?</Link>
           </div>
 
           <div className="si-divider"></div>
@@ -161,7 +170,7 @@ export default function SignInForm() {
           </button>
 
           <div className="si-signup">
-            Don&apos;t have an account? <a href="/sign-up">Sign Up</a>
+            Don&apos;t have an account? <Link href="/sign-up">Sign Up</Link>
           </div>
         </div>
       </div>

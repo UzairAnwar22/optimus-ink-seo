@@ -9,6 +9,8 @@ const optimus: BrandConfig = {
   siteUrl: "https://askmybio.ai",
   spaUrl: "https://askmybio.ai/app",
   apiUrl: "https://api.askmybio.ai",
+  logo: "/optimus-logo.svg",
+  icon: "/optimus-icon.png",
   favicon: "/fav.png",
   appleTouchIcon: "/fav.png",
   description: "Create your AI-powered bio link page. Share your profile, products, and content in one place.",

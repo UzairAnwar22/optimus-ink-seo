@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import brand from "@/config/brand";
 import {
   getProviderAuthUrl,
@@ -88,7 +89,9 @@ export default function SignUpForm() {
       <style>{`
         .su-wrap { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 28px 16px; background: #f5f5f5; }
         .su-card { width: 100%; max-width: 420px; background: #fff; border-radius: 16px; box-shadow: 0 4px 24px rgba(0,0,0,0.06); padding: 40px 36px 32px; }
-        .su-brand { text-align: center; margin-bottom: 20px; font-weight: 700; font-size: 22px; color: ${brand.colors.primary}; }
+        .su-brand { display: flex; justify-content: center; align-items: center; margin-bottom: 20px; }
+        .su-brand img { height: 36px; width: auto; max-width: 200px; object-fit: contain; }
+        .su-brand-text { font-weight: 700; font-size: 22px; color: ${brand.colors.primary}; }
         .su-title { margin: 0; text-align: center; font-size: 22px; font-weight: 700; color: #111827; }
         .su-subtitle { margin: 8px 0 24px; text-align: center; font-size: 14px; color: #6b7280; }
         .su-google { height: 48px; width: 100%; border-radius: 10px; border: 1px solid #e5e7eb; background: #fff; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 10px; font-size: 14px; font-weight: 600; color: #111827; transition: background 0.15s ease, border-color 0.15s ease; }
@@ -102,7 +105,13 @@ export default function SignUpForm() {
       `}</style>
       <div className="su-wrap">
         <div className="su-card">
-          <div className="su-brand">{brand.name}</div>
+          <div className="su-brand">
+            {brand.logo ? (
+              <img src={brand.logo} alt={brand.name} />
+            ) : (
+              <span className="su-brand-text">{brand.name}</span>
+            )}
+          </div>
           <h2 className="su-title">Welcome</h2>
           <div className="su-subtitle">Sign up to manage your page and update your content</div>
 
@@ -122,7 +131,7 @@ export default function SignUpForm() {
           </button>
 
           <div className="su-signin">
-            Already have an account? <a href="/sign-in">Sign In</a>
+            Already have an account? <Link href="/sign-in">Sign In</Link>
           </div>
         </div>
       </div>

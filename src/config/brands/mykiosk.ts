@@ -9,6 +9,8 @@ const mykiosk: BrandConfig = {
   siteUrl: "https://mykiosk.ai",
   spaUrl: "https://mykiosk.ai/app",
   apiUrl: "https://api.mykiosk.ai",
+  logo: "/mykiosk-logo.png",
+  icon: "/mykiosk-logo.png",
   favicon: "/mykiosk-fav.png",
   appleTouchIcon: "/mykiosk-fav.png",
   description: "Create your My Kiosk bio link page. Share your profile, products, and content in one place.",
