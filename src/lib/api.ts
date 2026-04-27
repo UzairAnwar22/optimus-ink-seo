@@ -62,3 +62,32 @@ export const fetchPublicProfile = cache(async (slug: string): Promise<ProfileDat
 export function getSettings(profile: ProfileData): ProfileSettings {
   return (profile.settingsJson || {}) as ProfileSettings;
 }
+
+export interface AskConfig {
+  slug: string;
+  displayName: string;
+  profileImage: string;
+  bio: string;
+  backgroundColor: string;
+  kbHandle: string | null;
+  askAi: {
+    aiName: string;
+    questionPlaceholder: string;
+    suggestedQuestions: string;
+    textColor: string;
+  } | null;
+  contentBlocks: Array<{ type: string; text: string }>;
+}
+
+export const fetchAskConfig = cache(async (slug: string): Promise<AskConfig | null> => {
+  try {
+    const res = await fetch(`${getApiBaseUrl()}/api/p/${encodeURIComponent(slug)}/ask-config`, {
+      next: { revalidate: 60 },
+    });
+    if (!res.ok) return null;
+    const json = await res.json();
+    return json?.data || null;
+  } catch {
+    return null;
+  }
+});
