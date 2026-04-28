@@ -13,8 +13,6 @@ import {
   OAUTH_MESSAGE_TYPE,
 } from "@/lib/auth";
 
-const POST_LOGIN_NEXT = "/my-pages";
-
 const GoogleG = () => (
   <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true">
     <path fill="#FFC107" d="M43.611 20.083H42V20H24v8h11.303C33.673 32.659 29.223 36 24 36c-6.627 0-12-5.373-12-12s5.373-12 12-12c3.059 0 5.842 1.154 7.957 3.043l5.657-5.657C34.022 6.053 29.258 4 24 4 12.955 4 4 12.955 4 24s8.955 20 20 20 20-8.955 20-20c0-1.341-.138-2.65-.389-3.917Z" />
@@ -37,7 +35,7 @@ export default function SignInForm() {
     setIsLoading(true);
     const result = await loginHandoffApi({ email, password });
     if (result.ok) {
-      window.location.href = buildAppResolveUrl(result.handoffToken, POST_LOGIN_NEXT);
+      window.location.href = buildAppResolveUrl(result.handoffToken);
       return;
     }
     setIsLoading(false);
