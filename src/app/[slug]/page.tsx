@@ -1,6 +1,6 @@
 import { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { fetchPublicProfile, getSiteUrl } from "@/lib/api";
+import { fetchPublicProfile, fetchProfileStatus, getSiteUrl } from "@/lib/api";
 import { extractSeoContent } from "@/lib/seo";
 import brand from "@/config/brand";
 import ProfilePage from "./ProfilePage";
@@ -14,7 +14,18 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
   const profile = await fetchPublicProfile(slug);
   if (!profile) {
-    return { title: "Profile Not Found" };
+    // Profile may exist in draft (e.g. just-claimed merchant) — surface a
+    // light-touch "Coming soon" title instead of a hard 404, but keep
+    // unpublished pages out of search results.
+    const status = await fetchProfileStatus(slug);
+    if (status?.exists) {
+      return {
+        title: `${status.name || slug} — Coming soon`,
+        description: `This bio link is being set up. Check back soon.`,
+        robots: { index: false, follow: false },
+      };
+    }
+    return { title: "Profile Not Found", robots: { index: false, follow: false } };
   }
 
   const seo = extractSeoContent(profile);
@@ -190,6 +201,16 @@ export default async function SlugPage({ params }: Props) {
   const profile = await fetchPublicProfile(slug);
 
   if (!profile) {
+    // Public profile lookup failed — check whether a profile exists at all
+    // for this slug. If it does (e.g. seeded via the claim flow but not yet
+    // published), hand off to the SPA iframe which renders the actual
+    // page content under a glassy "Coming soon" overlay. Only true unknowns
+    // fall through to the regular 404. Skip the SEO article + JSON-LD on
+    // unpublished pages so search engines don't index draft content.
+    const status = await fetchProfileStatus(slug);
+    if (status?.exists) {
+      return <ProfilePage slug={slug} />;
+    }
     notFound();
   }
 

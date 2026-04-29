@@ -59,6 +59,31 @@ export const fetchPublicProfile = cache(async (slug: string): Promise<ProfileDat
   }
 });
 
+export interface ProfileStatusInfo {
+  exists: boolean;
+  status: string | null; // "draft" | "pending_review" | "published" | "rejected" | null
+  isPublic: boolean;
+  name: string | null;
+  profileImage: string | null;
+  backgroundColor: string | null;
+}
+
+// Lightweight status check: hits a separate endpoint that always returns
+// 200 with `{ exists, status, ... }`. Called only when fetchPublicProfile
+// returns null, so we can decide between Coming-Soon and 404.
+export const fetchProfileStatus = cache(async (slug: string): Promise<ProfileStatusInfo | null> => {
+  try {
+    const res = await fetch(`${getApiBaseUrl()}/api/p/${encodeURIComponent(slug)}/status`, {
+      next: { revalidate: 30 },
+    });
+    if (!res.ok) return null;
+    const json = await res.json();
+    return (json?.data as ProfileStatusInfo | undefined) || null;
+  } catch {
+    return null;
+  }
+});
+
 export function getSettings(profile: ProfileData): ProfileSettings {
   return (profile.settingsJson || {}) as ProfileSettings;
 }
