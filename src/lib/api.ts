@@ -116,3 +116,46 @@ export const fetchAskConfig = cache(async (slug: string): Promise<AskConfig | nu
     return null;
   }
 });
+
+// ─── Checkout link metadata (public, read-only) ──────────────────────────
+export interface CheckoutLinkProductPreview {
+  id: string;
+  name: string;
+  price: string;
+  imageUrl?: string | null;
+  handle?: string | null;
+  quantity?: number;
+}
+
+export interface CheckoutLinkMeta {
+  code: string;
+  name: string;
+  ogTitle: string | null;
+  ogDescription: string | null;
+  ogImage: string | null;
+  products: CheckoutLinkProductPreview[];
+  designerProfileId: number | null;
+  status: "active" | "draft" | "archived";
+}
+
+/**
+ * Fetch public-safe metadata for a checkout link by code. Used by
+ * generateMetadata() on /c/[code] so social crawlers see proper OG tags.
+ * Cached for 60s server-side; safe to revalidate aggressively because the
+ * meta rarely changes after a link is published.
+ */
+export const fetchCheckoutLinkMeta = cache(
+  async (code: string): Promise<CheckoutLinkMeta | null> => {
+    try {
+      const res = await fetch(
+        `${getApiBaseUrl()}/api/checkout-links/public/${encodeURIComponent(code)}`,
+        { next: { revalidate: 60 } },
+      );
+      if (!res.ok) return null;
+      const json = await res.json();
+      return json?.data?.link || null;
+    } catch {
+      return null;
+    }
+  },
+);
