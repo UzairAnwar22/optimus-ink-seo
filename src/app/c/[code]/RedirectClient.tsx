@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { getApiBaseUrl } from "@/lib/api";
 
 interface Props {
   code: string;
@@ -23,11 +24,16 @@ export default function RedirectClient({ code }: Props) {
   useEffect(() => {
     let cancelled = false;
 
-    const apiBase =
-      process.env.NEXT_PUBLIC_API_URL ||
-      // Same-origin fallback: useful in production where the API and SEO
-      // app share a domain via reverse proxy.
-      (typeof window !== "undefined" ? window.location.origin : "");
+    const apiBase = getApiBaseUrl();
+
+    // Same-origin fallback: useful in production where the API and SEO
+    // app share a domain via reverse proxy.
+    if (!apiBase) {
+      // Handle the case where the API base URL is not available
+      setError("API base URL is not available");
+      setRedirecting(false);
+      return;
+    }
 
     (async () => {
       try {
