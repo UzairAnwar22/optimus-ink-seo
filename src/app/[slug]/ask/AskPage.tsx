@@ -118,9 +118,14 @@ export default function AskPage({ slug, name, avatar, bio, backgroundColor, kbHa
 
   // ── Theme tokens derived from profile bg (matches ProfilePage SPA palette) ──
   // askAi.textColor wins if explicitly set in admin, otherwise fall back to derived accent.
+  // For dark themes (e.g. fitness/Kept on near-black bg) the auto-derived accent
+  // turns into a loud neon — force white instead so dark themes stay strictly
+  // black + white. Light themes keep their derived accent.
   const autoTheme = deriveAutoTheme(backgroundColor);
-  const accent = (askAi?.textColor && /^#[0-9a-fA-F]{6}$/.test(askAi.textColor)) ? askAi.textColor : autoTheme.accentColor;
   const isDark = isHexDark(backgroundColor);
+  const accent = isDark
+    ? "#ffffff"
+    : ((askAi?.textColor && /^#[0-9a-fA-F]{6}$/.test(askAi.textColor)) ? askAi.textColor : autoTheme.accentColor);
   const textColor = autoTheme.textColor;
   const mutedText = isDark ? "rgba(255,255,255,0.7)" : "rgba(17,24,39,0.7)";
   const subtleText = isDark ? "rgba(255,255,255,0.55)" : "rgba(17,24,39,0.55)";
