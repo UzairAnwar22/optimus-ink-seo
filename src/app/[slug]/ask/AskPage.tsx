@@ -127,16 +127,25 @@ export default function AskPage({ slug, name, avatar, bio, backgroundColor, kbHa
   const subtleText = isDark ? "rgba(255,255,255,0.55)" : "rgba(17,24,39,0.55)";
   const cardBg = isDark ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.85)";
   const cardBorder = isDark ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.06)";
-  const chipBg = isDark ? "rgba(255,255,255,0.08)" : "#fff";
-  const chipBorder = isDark ? "rgba(255,255,255,0.18)" : "#e5e7eb";
-  const chipHoverBg = isDark ? "rgba(255,255,255,0.14)" : "#f9fafb";
+  // Dark-theme chip styling tuned a notch brighter than the older 0.08/0.18
+  // pair — the previous values were nearly invisible against a near-black
+  // gradient (e.g. the fitness/Kept theme), making the chip row fade out.
+  const chipBg = isDark ? "rgba(255,255,255,0.12)" : "#fff";
+  const chipBorder = isDark ? "rgba(255,255,255,0.25)" : "#e5e7eb";
+  const chipHoverBg = isDark ? "rgba(255,255,255,0.18)" : "#f9fafb";
   const userBubbleBg = accent;
   const userBubbleText = isHexDark(accent) ? "#ffffff" : "#111827";
   const assistantBubbleBg = isDark ? "rgba(255,255,255,0.10)" : "#F3F4F6";
   const sendDisabledBg = withAlpha(accent, 0.4);
   const headerBg = isDark ? "rgba(0,0,0,0.4)" : "rgba(255,255,255,0.7)";
 
-  const heroGradient = buildHeroGradient(backgroundColor, accent, isDark);
+  // On dark themes the accent-tinted gradient (green→black for Kept etc.)
+  // washed out the heading & chips. Use a solid theme bg for dark profiles
+  // so the content sits on a flat surface; light profiles keep the subtle
+  // accent wash that gives them their character.
+  const heroGradient = isDark
+    ? (backgroundColor || "#000000")
+    : buildHeroGradient(backgroundColor, accent, isDark);
 
   // ── Rotating tagline (typewriter) ─────────────────────────────────────
   // One generic phrase set used for every profile (see TAGLINE_PHRASES at
@@ -558,11 +567,26 @@ export default function AskPage({ slug, name, avatar, bio, backgroundColor, kbHa
         </button>
       )}
 
-      {/* Mobile: hide the sidebar at narrow widths so the chat fills the screen. */}
+      {/* Responsive overrides — sidebar is hidden on mobile (chat takes the
+          full screen) and the header / footer drop their generous desktop
+          padding so content isn't pushed off-screen at small widths.
+          Tablet (≤900px) gets a milder reduction; phone (≤640px) gets the
+          tightest. !important is needed because the same properties are also
+          set inline on the elements. */}
       <style>{`
+        @media (max-width: 900px) {
+          .ask-hero-header { padding: 16px 22px !important; }
+          .ask-chat-header { padding: 14px 22px !important; }
+          .ask-footer { padding: 24px 18px 16px !important; }
+          .ask-footer-inner { padding: 0 !important; }
+        }
         @media (max-width: 640px) {
           .ask-sidebar { display: none !important; }
           .ask-sidebar-edge-toggle { display: none !important; }
+          .ask-hero-header { padding: 14px 16px !important; }
+          .ask-chat-header { padding: 12px 16px !important; }
+          .ask-footer { padding: 20px 16px 14px !important; }
+          .ask-footer-inner { padding: 0 !important; }
         }
       `}</style>
 
@@ -578,7 +602,7 @@ export default function AskPage({ slug, name, avatar, bio, backgroundColor, kbHa
       {!hasMessages && (
         <div style={{ background: heroGradient, flex: 1, display: "flex", flexDirection: "column", overflow: "auto" }}>
           {/* Header */}
-          <header style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: sidebarOpen ? "20px 36px" : "20px 36px 20px 70px", margin: "0 auto", width: "100%" }}>
+          <header className="ask-hero-header" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: sidebarOpen ? "20px 36px" : "20px 36px 20px 70px", margin: "0 auto", width: "100%" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
               <div style={{ width: 26, height: 26, borderRadius: 6, background: accent, display: "flex", alignItems: "center", justifyContent: "center" }}>
                 <span style={{ color: userBubbleText, fontSize: 13, fontWeight: 800 }}>{name.charAt(0).toUpperCase()}</span>
@@ -617,7 +641,21 @@ export default function AskPage({ slug, name, avatar, bio, backgroundColor, kbHa
             <h1 style={{ fontSize: 52, fontWeight: 800, color: textColor, margin: "0 0 8px", lineHeight: 1.12, letterSpacing: "-0.8px" }}>
               Hi, I&apos;m {name} AI
             </h1>
-            <p style={{ fontSize: 38, fontWeight: 600, margin: "0 0 48px", background: `linear-gradient(90deg, ${accent}, ${withAlpha(accent, 0.7)})`, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", fontStyle: "italic", letterSpacing: "-0.3px" }}>
+            {/* Italic + background-clip:text was clipping the `?` descender
+                because the default <p> line-height is too tight. Generous
+                lineHeight + a sliver of paddingBottom give the glyph room
+                without disturbing layout. */}
+            <p style={{
+              fontSize: 38, fontWeight: 700, margin: "0 0 48px",
+              lineHeight: 1.25,
+              paddingBottom: 6,
+              background: `linear-gradient(90deg, ${accent}, ${textColor})`,
+              WebkitBackgroundClip: "text",
+              WebkitTextFillColor: "transparent",
+              backgroundClip: "text",
+              padding: "0 4px",
+              fontStyle: "italic", letterSpacing: "-0.3px",
+            }}>
               How can I help you today?
             </p>
 
@@ -632,15 +670,16 @@ export default function AskPage({ slug, name, avatar, bio, backgroundColor, kbHa
             }}>
               <form onSubmit={(e) => { e.preventDefault(); sendMessage(chatInput); }}>
                 {/* Input row: textarea fills width, send button sits inline on the right.
-                    `align-items: flex-end` keeps the round button anchored to the bottom edge
-                    of the textarea even as it grows from 1 line to multiple. */}
-                <div style={{ display: "flex", gap: 10 }}>
+                    `alignItems: center` keeps the placeholder/text vertically aligned with
+                    the round button. Textarea is 1 row by default — it grows downward as
+                    the user types, but the button stays centered with the visible line. */}
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                   <textarea
                     value={chatInput}
                     onChange={(e) => setChatInput(e.target.value)}
                     onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(chatInput); } }}
                     placeholder={askAi?.questionPlaceholder || `Ask ${name} about brands, outfit advice, or product reviews...`}
-                    rows={2}
+                    rows={1}
                     disabled={isTyping}
                     style={{ flex: 1, minWidth: 0, border: "none", outline: "none", fontSize: 14, padding: 0, background: "transparent", color: textColor, fontFamily: "inherit", resize: "none", lineHeight: 1.6 }}
                   />
@@ -684,6 +723,66 @@ export default function AskPage({ slug, name, avatar, bio, backgroundColor, kbHa
                 ))}
               </div>
             )}
+
+            {/* Featured question card — currently scoped to the "kept" profile.
+                Sits below the suggested-question chips with a subtle label,
+                the question itself, and an arrow that hints at navigation.
+                Whole card is the link target so the click area is generous. */}
+            {slug === "kept" && (
+              <a
+                href="https://kevo.store/kept/ask/best-red-lipstick-for-olive-skin"
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  width: "100%", maxWidth: 540,
+                  marginTop: 43,
+                  display: "flex", alignItems: "center", gap: 14,
+                  padding: "12px 16px",
+                  borderRadius: 14,
+                  border: `1px solid ${chipBorder}`, background: cardBg,
+                  textDecoration: "none",
+                  backdropFilter: "blur(6px)",
+                  transition: "background 0.15s, border-color 0.15s, transform 0.15s",
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = chipHoverBg;
+                  e.currentTarget.style.borderColor = withAlpha(accent, 0.4);
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = cardBg;
+                  e.currentTarget.style.borderColor = chipBorder;
+                }}
+              >
+                <span style={{
+                  flexShrink: 0,
+                  width: 32, height: 32, borderRadius: 10,
+                  background: withAlpha(accent, isDark ? 0.22 : 0.16),
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  color: accent,
+                }}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="12" cy="12" r="10" />
+                    <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
+                    <line x1="12" y1="17" x2="12.01" y2="17" />
+                  </svg>
+                </span>
+                <span style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 2, textAlign: "left" }}>
+                  <span style={{
+                    fontSize: 10, fontWeight: 700, color: subtleText,
+                    textTransform: "uppercase", letterSpacing: "0.6px",
+                  }}>
+                    Try asking
+                  </span>
+                  <span style={{ fontSize: 13, color: textColor, fontWeight: 500, lineHeight: 1.4 }}>
+                    What shade of red lipstick is best for my warm olive skin?
+                  </span>
+                </span>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={mutedText} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+                  <line x1="7" y1="17" x2="17" y2="7" />
+                  <polyline points="7 7 17 7 17 17" />
+                </svg>
+              </a>
+            )}
           </section>
         </div>
       )}
@@ -692,7 +791,7 @@ export default function AskPage({ slug, name, avatar, bio, backgroundColor, kbHa
       {hasMessages && (
         <>
           {/* Fixed top header */}
-          <header style={{ flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "space-between", padding: sidebarOpen ? "16px 36px" : "16px 36px 16px 70px", borderBottom: `1px solid ${cardBorder}`, background: headerBg, backdropFilter: "blur(12px)" }}>
+          <header className="ask-chat-header" style={{ flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "space-between", padding: sidebarOpen ? "16px 36px" : "16px 36px 16px 70px", borderBottom: `1px solid ${cardBorder}`, background: headerBg, backdropFilter: "blur(12px)" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
               <div style={{ width: 26, height: 26, borderRadius: 6, background: accent, display: "flex", alignItems: "center", justifyContent: "center" }}>
                 <span style={{ color: userBubbleText, fontSize: 13, fontWeight: 800 }}>{name.charAt(0).toUpperCase()}</span>
@@ -833,7 +932,7 @@ export default function AskPage({ slug, name, avatar, bio, backgroundColor, kbHa
             >
               {/* Same shape as the hero card — textarea + send sit in one row,
                   chips wrap underneath. No more bottom action bar. */}
-              <div style={{ display: "flex", alignItems: "flex-end", gap: 10 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                 <textarea
                   value={chatInput}
                   onChange={(e) => setChatInput(e.target.value)}
@@ -897,17 +996,20 @@ export default function AskPage({ slug, name, avatar, bio, backgroundColor, kbHa
 
       {/* ══ FOOTER (only shown on hero state, hidden in chat mode) ══ */}
       {!hasMessages && (
-        <footer style={{ flexShrink: 0, background: isDark ? withAlpha("#000000", 0.4) : "#f8f8f8", borderTop: `1px solid ${cardBorder}`, padding: "32px 24px 20px" }}>
-          <div style={{  margin: "0 auto", padding: "0 15px" }}>
+        <footer className="ask-footer" style={{ flexShrink: 0, background: isDark ? withAlpha("#000000", 0.4) : "#f8f8f8", borderTop: `1px solid ${cardBorder}`, padding: "32px 24px 20px" }}>
+          <div className="ask-footer-inner" style={{  margin: "0 auto", padding: "0 15px" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 24 }}>
               <div>
                 <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
-                  <div style={{ width: 32, height: 32, borderRadius: 8, background: accent, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                    <span style={{ color: userBubbleText, fontSize: 14, fontWeight: 800 }}>{name.charAt(0).toUpperCase()}</span>
-                  </div>
-                  <span style={{ fontSize: 22, fontWeight: 900, color: textColor, letterSpacing: "-0.5px" }}>{brand.shortName.toLowerCase()}.</span>
+                  {/* Brand logo only — wordmark dropped, mark scaled up so it
+                      stands on its own as the footer identity. */}
+                  <img
+                    src={brand.logo}
+                    alt={brand.name}
+                    style={{ width: 96, height: 56, borderRadius: 12, objectFit: "contain", display: "block", flexShrink: 0 }}
+                  />
                 </div>
-                <div style={{ fontSize: 12, color: mutedText, marginBottom: 14 }}>From Berlin. With <span style={{ color: accent }}>&#10084;</span></div>
+                <div style={{ fontSize: 12, color: mutedText, marginBottom: 14 }}>From texas. With <span style={{ color: accent }}>&#10084;</span></div>
                 <div style={{ display: "flex", gap: 8 }}>
                   {SOCIALS.map((s) => (
                     <a key={s.label} href="#" style={{ width: 32, height: 32, borderRadius: "50%", border: `1.5px solid ${chipBorder}`, display: "flex", alignItems: "center", justifyContent: "center", textDecoration: "none" }}>
