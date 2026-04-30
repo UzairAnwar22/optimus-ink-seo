@@ -43,13 +43,11 @@ interface ChatMessage {
   feedback?: "up" | "down" | null;
 }
 
-const NAV_LINKS = ["Categories", "Top Picks", "Guides"];
-
-const SOCIALS = [
-  { label: "X", path: "M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" },
-  { label: "IG", path: "M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98C.014 8.332 0 8.74 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.332 23.986 8.74 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 100 12.324 6.162 6.162 0 000-12.324zM12 16a4 4 0 110-8 4 4 0 010 8zm6.406-11.845a1.44 1.44 0 100 2.881 1.44 1.44 0 000-2.881z" },
-  { label: "YT", path: "M23.498 6.186a3.016 3.016 0 00-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 00.502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 002.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 002.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z" },
-  { label: "FB", path: "M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z" },
+// Footer link config — mirrors BioProfilePreview's footer (Join {brand} pill +
+// dot-separated legal links).
+const FOOTER_LINKS: Array<{ label: string; href: string }> = [
+  { label: "Report",  href: "https://kevo.store/report" },
+  { label: "Privacy", href: "https://kevo.store/privacy-policy" },
 ];
 
 // ── Theme gradient using profile bg + accent (no fade-to-white) ──
@@ -101,6 +99,15 @@ export default function AskPage({ slug, name, avatar, bio, backgroundColor, kbHa
   const headerBg = isDark ? "rgba(0,0,0,0.4)" : "rgba(255,255,255,0.7)";
 
   const heroGradient = buildHeroGradient(backgroundColor, accent, isDark);
+
+  // Header nav: Home → brand site, profile name → public profile page, ask →
+  // current page (so the user can always re-open a fresh chat). External links
+  // open in a new tab; in-app links replace the current view.
+  const navLinks = [
+    { label: "Home", href: brand.siteUrl, external: true },
+    { label: name, href: `/${slug}`, external: false },
+    { label: "Ask", href: `/${slug}/ask`, external: false },
+  ];
 
   // Hint chips — fetched from Knowledge Base /api/creator/{handle} (hint_chips field)
   // No localStorage — every browser/visitor gets fresh chips for this creator.
@@ -278,9 +285,21 @@ export default function AskPage({ slug, name, avatar, bio, backgroundColor, kbHa
               </div>
               <span style={{ fontSize: 14, fontWeight: 700, color: textColor }}>{name} AI</span>
             </div>
-            <nav style={{ display: "flex", gap: 28 }}>
-              {NAV_LINKS.map((l) => (
-                <a key={l} href="#" style={{ fontSize: 13, color: mutedText, textDecoration: "none", fontWeight: 500 }}>{l}</a>
+            <nav style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              {navLinks.map((l, i) => (
+                <span key={l.label} style={{ display: "inline-flex", alignItems: "center", gap: 12 }}>
+                  <a
+                    href={l.href}
+                    target={l.external ? "_blank" : undefined}
+                    rel={l.external ? "noopener noreferrer" : undefined}
+                    style={{ fontSize: 13, color: mutedText, textDecoration: "none", fontWeight: 500 }}
+                  >
+                    {l.label}
+                  </a>
+                  {i < navLinks.length - 1 && (
+                    <span style={{ fontSize: 13, color: subtleText, fontWeight: 400 }}>/</span>
+                  )}
+                </span>
               ))}
             </nav>
           </header>
@@ -372,9 +391,21 @@ export default function AskPage({ slug, name, avatar, bio, backgroundColor, kbHa
               </div>
               <span style={{ fontSize: 14, fontWeight: 700, color: textColor }}>{name} AI</span>
             </div>
-            <nav style={{ display: "flex", gap: 28 }}>
-              {NAV_LINKS.map((l) => (
-                <a key={l} href="#" style={{ fontSize: 13, color: mutedText, textDecoration: "none", fontWeight: 500 }}>{l}</a>
+            <nav style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              {navLinks.map((l, i) => (
+                <span key={l.label} style={{ display: "inline-flex", alignItems: "center", gap: 12 }}>
+                  <a
+                    href={l.href}
+                    target={l.external ? "_blank" : undefined}
+                    rel={l.external ? "noopener noreferrer" : undefined}
+                    style={{ fontSize: 13, color: mutedText, textDecoration: "none", fontWeight: 500 }}
+                  >
+                    {l.label}
+                  </a>
+                  {i < navLinks.length - 1 && (
+                    <span style={{ fontSize: 13, color: subtleText, fontWeight: 400 }}>/</span>
+                  )}
+                </span>
               ))}
             </nav>
           </header>
@@ -555,38 +586,41 @@ export default function AskPage({ slug, name, avatar, bio, backgroundColor, kbHa
       `}</style>
 
       {/* ══ FOOTER (only shown on hero state, hidden in chat mode) ══ */}
+      {/* Mirrors BioProfilePreview's footer: a centered "Join {brand}" pill +
+          dot-separated legal links. Pill stays light-on-dark even on dark
+          themes so it pops; link colors come from the theme tokens so they
+          dim/brighten with the page bg. */}
       {!hasMessages && (
-        <footer style={{ flexShrink: 0, background: isDark ? withAlpha("#000000", 0.4) : "#f8f8f8", borderTop: `1px solid ${cardBorder}`, padding: "32px 24px 20px" }}>
-          <div style={{ maxWidth: 1000, margin: "0 auto" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 24 }}>
-              <div>
-                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
-                  <div style={{ width: 32, height: 32, borderRadius: 8, background: accent, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                    <span style={{ color: userBubbleText, fontSize: 14, fontWeight: 800 }}>{name.charAt(0).toUpperCase()}</span>
-                  </div>
-                  <span style={{ fontSize: 22, fontWeight: 900, color: textColor, letterSpacing: "-0.5px" }}>{brand.shortName.toLowerCase()}.</span>
-                </div>
-                <div style={{ fontSize: 12, color: mutedText, marginBottom: 14 }}>From Berlin. With <span style={{ color: accent }}>&#10084;</span></div>
-                <div style={{ display: "flex", gap: 8 }}>
-                  {SOCIALS.map((s) => (
-                    <a key={s.label} href="#" style={{ width: 32, height: 32, borderRadius: "50%", border: `1.5px solid ${chipBorder}`, display: "flex", alignItems: "center", justifyContent: "center", textDecoration: "none" }}>
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill={mutedText}><path d={s.path} /></svg>
-                    </a>
-                  ))}
-                </div>
-              </div>
-              <div>
-                <div style={{ fontSize: 12, fontWeight: 700, color: textColor, marginBottom: 10, letterSpacing: 0.3 }}>COMPANY</div>
-                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                  <a href="#" style={{ fontSize: 13, color: mutedText, textDecoration: "none" }}>Contact</a>
-                  <a href="#" style={{ fontSize: 13, color: mutedText, textDecoration: "none" }}>Blog</a>
-                </div>
-              </div>
-            </div>
-            <div style={{ borderTop: `1px solid ${cardBorder}`, paddingTop: 14, marginTop: 16, display: "flex", gap: 16 }}>
-              <a href="https://kevo.store/privacy-policy" target="_blank" rel="noopener noreferrer" style={{ fontSize: 11, color: subtleText, textDecoration: "none" }}>Terms &amp; Conditions</a>
-              <a href="https://kevo.store/privacy-policy" target="_blank" rel="noopener noreferrer" style={{ fontSize: 11, color: subtleText, textDecoration: "none" }}>Privacy Policy</a>
-            </div>
+        <footer style={{ flexShrink: 0, padding: "20px 16px 32px", display: "flex", flexDirection: "column", alignItems: "center", gap: 12 }}>
+          <a
+            href="/sign-up"
+            style={{
+              display: "inline-flex", alignItems: "center", gap: 8,
+              padding: "12px 28px",
+              backgroundColor: "#ffffff", color: "#111827",
+              borderRadius: 50, textDecoration: "none",
+              fontSize: 14, fontWeight: 600, letterSpacing: "0.01em",
+              boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
+            }}
+          >
+            Join {brand.name}
+          </a>
+          <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "center", gap: "4px 8px" }}>
+            {FOOTER_LINKS.map((link, i) => (
+              <span key={link.label} style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+                <a
+                  href={link.href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ fontSize: 12, color: mutedText, textDecoration: "none" }}
+                >
+                  {link.label}
+                </a>
+                {i < FOOTER_LINKS.length - 1 && (
+                  <span style={{ fontSize: 12, color: subtleText }}>·</span>
+                )}
+              </span>
+            ))}
           </div>
         </footer>
       )}
