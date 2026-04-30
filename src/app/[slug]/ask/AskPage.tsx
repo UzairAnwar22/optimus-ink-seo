@@ -4,6 +4,17 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import brand from "@/config/brand";
 import { deriveAutoTheme } from "@/lib/theme";
 
+// ── Rotating tagline (typewriter) — generic phrase set ─────────────────
+// One universal trio that reads naturally for any vertical (fashion, beauty,
+// fitness, food, etc.). The pill cycles through these with a typewriter
+// animation; per-vertical detection was intentionally dropped — operators
+// preferred a consistent voice across all profiles.
+const TAGLINE_PHRASES = [
+  "Your Personal Style Editor",
+  "Your AI Shopping Buddy",
+  "Your Personal Concierge",
+];
+
 interface Props {
   slug: string;
   name: string;
@@ -100,6 +111,9 @@ export default function AskPage({ slug, name, avatar, bio, backgroundColor, kbHa
   // sidebar's "Recents" list.
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
+  // Sidebar open/closed. Default open on desktop; the floating restore button
+  // is what brings it back after a collapse.
+  const [sidebarOpen, setSidebarOpen] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const abortRef = useRef<AbortController | null>(null);
 
@@ -123,6 +137,47 @@ export default function AskPage({ slug, name, avatar, bio, backgroundColor, kbHa
   const headerBg = isDark ? "rgba(0,0,0,0.4)" : "rgba(255,255,255,0.7)";
 
   const heroGradient = buildHeroGradient(backgroundColor, accent, isDark);
+
+  // ── Rotating tagline (typewriter) ─────────────────────────────────────
+  // One generic phrase set used for every profile (see TAGLINE_PHRASES at
+  // the top of the file). Cycles through with a typewriter animation.
+  const [taglineDisplay, setTaglineDisplay] = useState("");
+
+  useEffect(() => {
+    // Local closure state — kept out of React state because we'd otherwise
+    // re-render and break the timing on every charIndex tick.
+    let charIndex = 0;
+    let phraseIndex = 0;
+    let isDeleting = false;
+    let timeout: ReturnType<typeof setTimeout>;
+
+    const tick = () => {
+      const phrase = TAGLINE_PHRASES[phraseIndex];
+      if (!isDeleting) {
+        charIndex++;
+        setTaglineDisplay(phrase.slice(0, charIndex));
+        if (charIndex >= phrase.length) {
+          // Hold the full phrase before erasing.
+          timeout = setTimeout(() => { isDeleting = true; tick(); }, 1900);
+          return;
+        }
+        timeout = setTimeout(tick, 75);
+      } else {
+        charIndex--;
+        setTaglineDisplay(phrase.slice(0, charIndex));
+        if (charIndex <= 0) {
+          isDeleting = false;
+          phraseIndex = (phraseIndex + 1) % TAGLINE_PHRASES.length;
+          timeout = setTimeout(tick, 350);
+          return;
+        }
+        timeout = setTimeout(tick, 45);
+      }
+    };
+
+    timeout = setTimeout(tick, 500);
+    return () => clearTimeout(timeout);
+  }, []);
 
   // Header nav: Home → brand site, profile name → public profile page, ask →
   // current page (so the user can always re-open a fresh chat). External links
@@ -173,6 +228,58 @@ export default function AskPage({ slug, name, avatar, bio, backgroundColor, kbHa
   }, []);
 
   useEffect(() => { scrollToBottom(); }, [messages, isTyping, scrollToBottom]);
+
+  // ── Sidebar history sync ────────────────────────────────────────────────
+  // Whenever the active conversation's messages change, mirror them into the
+  // matching session in `sessions`. If no session is active yet, this is the
+  // first message of a brand-new chat — create a session and pin it as
+  // current. Title is re-derived each tick so the sidebar entry updates as
+  // soon as the user types their first prompt.
+  useEffect(() => {
+    if (messages.length === 0) return;
+    if (!currentSessionId) {
+      const id = `s_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+      setSessions((prev) => [
+        { id, title: deriveSessionTitle(messages), messages: [...messages], createdAt: Date.now() },
+        ...prev,
+      ]);
+      setCurrentSessionId(id);
+    } else {
+      setSessions((prev) =>
+        prev.map((s) =>
+          s.id === currentSessionId
+            ? { ...s, messages: [...messages], title: deriveSessionTitle(messages) }
+            : s,
+        ),
+      );
+    }
+    // currentSessionId is intentionally read directly (not a dep) — the effect
+    // is keyed on `messages` because that's the source of truth for "did this
+    // chat just change". Including currentSessionId would re-fire on every
+    // session switch and clobber loaded history with current messages.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [messages]);
+
+  const startNewChat = useCallback(() => {
+    // Cancel any in-flight stream before resetting — otherwise the response
+    // for the previous chat would land in the new (empty) one.
+    if (abortRef.current) abortRef.current.abort();
+    setIsTyping(false);
+    setMessages([]);
+    setCurrentSessionId(null);
+    setChatInput("");
+  }, []);
+
+  const loadSession = useCallback((id: string) => {
+    if (id === currentSessionId) return;
+    if (abortRef.current) abortRef.current.abort();
+    setIsTyping(false);
+    const target = sessions.find((s) => s.id === id);
+    if (!target) return;
+    setMessages([...target.messages]);
+    setCurrentSessionId(id);
+    setChatInput("");
+  }, [sessions, currentSessionId]);
 
   // ── Send message (streaming) ──
   const sendMessage = useCallback(async (text: string) => {
@@ -288,21 +395,190 @@ export default function AskPage({ slug, name, avatar, bio, backgroundColor, kbHa
 
   return (
     <div style={{
-      // Lock the page to viewport height — only the chat messages area scrolls.
-      // This stops footer / header from jumping when content grows.
-      height: "100vh",
-      display: "flex", flexDirection: "column",
-      // Profile theme gradient applies to BOTH states (hero + chat mode).
-      background: heroGradient,
+      // Outer shell: sidebar (history) + main content split horizontally.
+      // `position: relative` anchors the floating collapse button (which sits
+      // on the sidebar↔main border) against this container.
+      height: "100vh", display: "flex", flexDirection: "row",
       fontFamily: "var(--font-body), system-ui, -apple-system, sans-serif",
       overflow: "hidden",
+      background: heroGradient,
+      position: "relative",
     }}>
+      {/* ══ SIDEBAR (chat history) ══
+          Outer <aside> handles width animation; inner content always renders
+          at 260px so labels don't reflow during the slide. `overflow: hidden`
+          on the outer clips that fixed-width content while collapsed. */}
+      <aside
+        className="ask-sidebar"
+        style={{
+          width: sidebarOpen ? 260 : 0,
+          flexShrink: 0,
+          overflow: "hidden",
+          transition: "width 0.28s cubic-bezier(0.4, 0, 0.2, 1)",
+          background: isDark ? "rgba(0,0,0,0.32)" : "rgba(255,255,255,0.55)",
+          borderRight: sidebarOpen ? `1px solid ${cardBorder}` : "none",
+          backdropFilter: "blur(10px)",
+        }}
+      >
+        <div style={{ width: 260, height: "100%", display: "flex", flexDirection: "column" }}>
+          <div style={{ padding: "14px 12px 8px" }}>
+            <button
+              type="button"
+              onClick={startNewChat}
+              style={{
+                width: "90%", padding: "10px 14px", borderRadius: 10,
+                border: `1px solid ${cardBorder}`, background: chipBg,
+                cursor: "pointer", fontFamily: "inherit",
+                display: "flex", alignItems: "center", gap: 10,
+                color: textColor, fontSize: 13, fontWeight: 600,
+                transition: "background 0.15s, border-color 0.15s",
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = chipHoverBg; e.currentTarget.style.borderColor = withAlpha(accent, 0.4); }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = chipBg; e.currentTarget.style.borderColor = cardBorder; }}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+              </svg>
+              New chat
+            </button>
+          </div>
+
+          <div style={{ flex: 1, overflowY: "auto", padding: "8px 8px 16px" }}>
+            {sessions.length > 0 ? (
+              <>
+                <div style={{
+                  fontSize: 10, fontWeight: 700, color: subtleText,
+                  textTransform: "uppercase", letterSpacing: "0.6px",
+                  padding: "8px 10px 6px",
+                }}>
+                  Recents
+                </div>
+                {sessions.map((s) => {
+                  const active = s.id === currentSessionId;
+                  return (
+                    <button
+                      key={s.id}
+                      type="button"
+                      onClick={() => loadSession(s.id)}
+                      title={s.title}
+                      style={{
+                        width: "100%", padding: "8px 10px", borderRadius: 8,
+                        border: "none",
+                        background: active ? withAlpha(accent, isDark ? 0.22 : 0.14) : "transparent",
+                        cursor: "pointer", textAlign: "left",
+                        color: active ? textColor : mutedText,
+                        fontSize: 13, fontWeight: active ? 600 : 500,
+                        fontFamily: "inherit",
+                        whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+                        display: "block",
+                        marginBottom: 2,
+                        transition: "background 0.12s",
+                      }}
+                      onMouseEnter={(e) => { if (!active) e.currentTarget.style.background = chipHoverBg; }}
+                      onMouseLeave={(e) => { if (!active) e.currentTarget.style.background = "transparent"; }}
+                    >
+                      {s.title}
+                    </button>
+                  );
+                })}
+              </>
+            ) : (
+              <div style={{ padding: "8px 10px", fontSize: 12, color: subtleText, lineHeight: 1.5 }}>
+                Your chats will appear here.
+              </div>
+            )}
+          </div>
+        </div>
+      </aside>
+
+      {/* "Border-tab" collapse button — small round chevron that sits centred
+          on the sidebar↔main divider line. Lives outside <aside> so it isn't
+          clipped by the sidebar's overflow:hidden during the width animation. */}
+      {sidebarOpen && (
+        <button
+          type="button"
+          onClick={() => setSidebarOpen(false)}
+          aria-label="Collapse sidebar"
+          title="Collapse sidebar"
+          className="ask-sidebar-edge-toggle"
+          style={{
+            position: "absolute",
+            // Anchor on the right edge of the sidebar (260px) and pull half
+            // the button width back so it straddles the border line.
+            // Sits up near the top — roughly aligned with the New Chat button
+            // for a cleaner header strip.
+            left: 260 - 14, top: 22,
+            width: 28, height: 28, borderRadius: "50%",
+            border: `1px solid ${cardBorder}`, background: cardBg,
+            cursor: "pointer", color: mutedText,
+            display: "flex", alignItems: "center", justifyContent: "center",
+            zIndex: 5,
+            boxShadow: "0 2px 8px rgba(0,0,0,0.06)",
+            transition: "background 0.15s, color 0.15s",
+          }}
+          onMouseEnter={(e) => { e.currentTarget.style.background = chipHoverBg; e.currentTarget.style.color = textColor; }}
+          onMouseLeave={(e) => { e.currentTarget.style.background = cardBg; e.currentTarget.style.color = mutedText; }}
+        >
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="15 18 9 12 15 6" />
+          </svg>
+        </button>
+      )}
+
+      {/* Floating restore button — only visible while the sidebar is closed.
+          Positioned absolute over the main column's top-left so it doesn't
+          shove the brand logo / header content around. The headers reserve
+          extra left padding when sidebarOpen=false (see headers below) so the
+          brand logo doesn't sit underneath this button. */}
+      {!sidebarOpen && (
+        <button
+          type="button"
+          onClick={() => setSidebarOpen(true)}
+          aria-label="Open sidebar"
+          title="Open sidebar"
+          style={{
+            position: "fixed", top: 14, left: 14, zIndex: 50,
+            width: 36, height: 36, borderRadius: 10,
+            border: `1px solid ${cardBorder}`, background: cardBg,
+            backdropFilter: "blur(10px)",
+            cursor: "pointer", color: textColor,
+            display: "flex", alignItems: "center", justifyContent: "center",
+            boxShadow: "0 4px 14px rgba(0,0,0,0.08)",
+            transition: "background 0.15s",
+          }}
+          onMouseEnter={(e) => { e.currentTarget.style.background = chipHoverBg; }}
+          onMouseLeave={(e) => { e.currentTarget.style.background = cardBg; }}
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <line x1="3" y1="6" x2="21" y2="6" />
+            <line x1="3" y1="12" x2="21" y2="12" />
+            <line x1="3" y1="18" x2="21" y2="18" />
+          </svg>
+        </button>
+      )}
+
+      {/* Mobile: hide the sidebar at narrow widths so the chat fills the screen. */}
+      <style>{`
+        @media (max-width: 640px) {
+          .ask-sidebar { display: none !important; }
+          .ask-sidebar-edge-toggle { display: none !important; }
+        }
+      `}</style>
+
+      {/* ══ MAIN COLUMN ══ */}
+      <div style={{
+        flex: 1, minWidth: 0, height: "100vh",
+        display: "flex", flexDirection: "column",
+        background: heroGradient,
+        overflow: "hidden",
+      }}>
 
       {/* ══ BANNER (header + hero, only when no messages) ══ */}
       {!hasMessages && (
         <div style={{ background: heroGradient, flex: 1, display: "flex", flexDirection: "column", overflow: "auto" }}>
           {/* Header */}
-          <header style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "20px 36px", maxWidth: 1200, margin: "0 auto", width: "100%" }}>
+          <header style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: sidebarOpen ? "20px 36px" : "20px 36px 20px 70px", margin: "0 auto", width: "100%" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
               <div style={{ width: 26, height: 26, borderRadius: 6, background: accent, display: "flex", alignItems: "center", justifyContent: "center" }}>
                 <span style={{ color: userBubbleText, fontSize: 13, fontWeight: 800 }}>{name.charAt(0).toUpperCase()}</span>
@@ -330,9 +606,13 @@ export default function AskPage({ slug, name, avatar, bio, backgroundColor, kbHa
 
           {/* Hero */}
           <section style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "0 24px 60px", textAlign: "center" }}>
-            <div style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "5px 16px", borderRadius: 50, border: `1px solid ${withAlpha(accent, 0.25)}`, background: cardBg, fontSize: 11, fontWeight: 500, color: mutedText, marginBottom: 32, backdropFilter: "blur(6px)" }}>
-              <span style={{ width: 5, height: 5, borderRadius: "50%", background: accent }} />
-              Your Personal Style Editor
+            {/* Rotating tagline pill — phrase is typewriter-animated and
+                cycles through TAGLINE_PHRASES. minHeight prevents the pill
+                from collapsing between deletions of one phrase and start of
+                the next. */}
+            <div style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "8px 20px", borderRadius: 50, border: `1px solid ${withAlpha(accent, 0.25)}`, background: cardBg, fontSize: 13, fontWeight: 500, color: mutedText, marginBottom: 36, backdropFilter: "blur(6px)", minHeight: 28 }}>
+              <span style={{ width: 6, height: 6, borderRadius: "50%", background: accent, flexShrink: 0 }} />
+              <span>{taglineDisplay}</span>
             </div>
             <h1 style={{ fontSize: 52, fontWeight: 800, color: textColor, margin: "0 0 8px", lineHeight: 1.12, letterSpacing: "-0.8px" }}>
               Hi, I&apos;m {name} AI
@@ -412,7 +692,7 @@ export default function AskPage({ slug, name, avatar, bio, backgroundColor, kbHa
       {hasMessages && (
         <>
           {/* Fixed top header */}
-          <header style={{ flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 36px", borderBottom: `1px solid ${cardBorder}`, background: headerBg, backdropFilter: "blur(12px)" }}>
+          <header style={{ flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "space-between", padding: sidebarOpen ? "16px 36px" : "16px 36px 16px 70px", borderBottom: `1px solid ${cardBorder}`, background: headerBg, backdropFilter: "blur(12px)" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
               <div style={{ width: 26, height: 26, borderRadius: 6, background: accent, display: "flex", alignItems: "center", justifyContent: "center" }}>
                 <span style={{ color: userBubbleText, fontSize: 13, fontWeight: 800 }}>{name.charAt(0).toUpperCase()}</span>
@@ -540,7 +820,7 @@ export default function AskPage({ slug, name, avatar, bio, backgroundColor, kbHa
           </div>
 
           {/* Fixed input bar at bottom of viewport */}
-          <div style={{ flexShrink: 0, borderTop: `1px solid ${cardBorder}`, background: headerBg, backdropFilter: "blur(12px)", padding: "20px 24px 24px" }}>
+          <div style={{ flexShrink: 0, backdropFilter: "blur(12px)", padding: "20px 24px 24px" }}>
             <form
               onSubmit={(e) => { e.preventDefault(); sendMessage(chatInput); }}
               style={{
@@ -618,7 +898,7 @@ export default function AskPage({ slug, name, avatar, bio, backgroundColor, kbHa
       {/* ══ FOOTER (only shown on hero state, hidden in chat mode) ══ */}
       {!hasMessages && (
         <footer style={{ flexShrink: 0, background: isDark ? withAlpha("#000000", 0.4) : "#f8f8f8", borderTop: `1px solid ${cardBorder}`, padding: "32px 24px 20px" }}>
-          <div style={{ maxWidth: 1000, margin: "0 auto" }}>
+          <div style={{  margin: "0 auto", padding: "0 15px" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 24 }}>
               <div>
                 <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
@@ -651,6 +931,7 @@ export default function AskPage({ slug, name, avatar, bio, backgroundColor, kbHa
           </div>
         </footer>
       )}
+      </div>{/* end main column */}
     </div>
   );
 }
