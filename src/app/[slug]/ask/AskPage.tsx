@@ -43,8 +43,6 @@ interface ChatMessage {
   feedback?: "up" | "down" | null;
 }
 
-const NAV_LINKS = ["Home"];
-
 // Footer link config — mirrors BioProfilePreview's footer (Join {brand} pill +
 // dot-separated legal links).
 const FOOTER_LINKS: Array<{ label: string; href: string }> = [
@@ -101,6 +99,15 @@ export default function AskPage({ slug, name, avatar, bio, backgroundColor, kbHa
   const headerBg = isDark ? "rgba(0,0,0,0.4)" : "rgba(255,255,255,0.7)";
 
   const heroGradient = buildHeroGradient(backgroundColor, accent, isDark);
+
+  // Header nav: Home → brand site, profile name → public profile page, ask →
+  // current page (so the user can always re-open a fresh chat). External links
+  // open in a new tab; in-app links replace the current view.
+  const navLinks = [
+    { label: "Home", href: brand.siteUrl, external: true },
+    { label: name, href: `/${slug}`, external: false },
+    { label: "Ask", href: `/${slug}/ask`, external: false },
+  ];
 
   // Hint chips — fetched from Knowledge Base /api/creator/{handle} (hint_chips field)
   // No localStorage — every browser/visitor gets fresh chips for this creator.
@@ -278,9 +285,21 @@ export default function AskPage({ slug, name, avatar, bio, backgroundColor, kbHa
               </div>
               <span style={{ fontSize: 14, fontWeight: 700, color: textColor }}>{name} AI</span>
             </div>
-            <nav style={{ display: "flex", gap: 28 }}>
-              {NAV_LINKS.map((l) => (
-                <a key={l} href={`/${slug}/ask`} style={{ fontSize: 13, color: mutedText, textDecoration: "none", fontWeight: 500 }}>{l}</a>
+            <nav style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              {navLinks.map((l, i) => (
+                <span key={l.label} style={{ display: "inline-flex", alignItems: "center", gap: 12 }}>
+                  <a
+                    href={l.href}
+                    target={l.external ? "_blank" : undefined}
+                    rel={l.external ? "noopener noreferrer" : undefined}
+                    style={{ fontSize: 13, color: mutedText, textDecoration: "none", fontWeight: 500 }}
+                  >
+                    {l.label}
+                  </a>
+                  {i < navLinks.length - 1 && (
+                    <span style={{ fontSize: 13, color: subtleText, fontWeight: 400 }}>/</span>
+                  )}
+                </span>
               ))}
             </nav>
           </header>
@@ -372,9 +391,21 @@ export default function AskPage({ slug, name, avatar, bio, backgroundColor, kbHa
               </div>
               <span style={{ fontSize: 14, fontWeight: 700, color: textColor }}>{name} AI</span>
             </div>
-            <nav style={{ display: "flex", gap: 28 }}>
-              {NAV_LINKS.map((l) => (
-                <a key={l} href={`/${slug}/ask`} style={{ fontSize: 13, color: mutedText, textDecoration: "none", fontWeight: 500 }}>{l}</a>
+            <nav style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              {navLinks.map((l, i) => (
+                <span key={l.label} style={{ display: "inline-flex", alignItems: "center", gap: 12 }}>
+                  <a
+                    href={l.href}
+                    target={l.external ? "_blank" : undefined}
+                    rel={l.external ? "noopener noreferrer" : undefined}
+                    style={{ fontSize: 13, color: mutedText, textDecoration: "none", fontWeight: 500 }}
+                  >
+                    {l.label}
+                  </a>
+                  {i < navLinks.length - 1 && (
+                    <span style={{ fontSize: 13, color: subtleText, fontWeight: 400 }}>/</span>
+                  )}
+                </span>
               ))}
             </nav>
           </header>
