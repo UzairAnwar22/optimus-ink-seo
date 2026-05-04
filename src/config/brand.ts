@@ -43,11 +43,13 @@ export interface ResolvedBrand extends BrandConfig {
 import optimus from "./brands/optimus";
 import mykiosk from "./brands/mykiosk";
 import kevo from "./brands/kevo";
+import kevo_sandbox from "./brands/kevo_sandbox";
 
 const brands: Record<string, BrandConfig> = {
   optimus,
   mykiosk,
   kevo,
+  kevo_sandbox
 };
 
 const brandKey = (process.env.NEXT_PUBLIC_BRAND || "optimus").toLowerCase();
