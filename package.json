@@ -14,10 +14,12 @@
     "build:optimus": "cross-env NEXT_PUBLIC_BRAND=optimus next build",
     "build:mykiosk": "cross-env NEXT_PUBLIC_BRAND=mykiosk next build",
     "build:kevo": "cross-env NEXT_PUBLIC_BRAND=kevo next build",
+    "build:kevo_sandbox": "cross-env NEXT_PUBLIC_BRAND=kevo_sandbox next build",
     "start": "next start",
     "start:optimus": "cross-env NEXT_PUBLIC_BRAND=optimus next start --port 3009",
     "start:mykiosk": "cross-env NEXT_PUBLIC_BRAND=mykiosk next start --port 3009",
     "start:kevo": "cross-env NEXT_PUBLIC_BRAND=kevo next start --port 3009",
+    "start:kevo_sandbox": "cross-env NEXT_PUBLIC_BRAND=kevo_sandbox next start --port 6001",
     "lint": "eslint"
   },
   "dependencies": {
