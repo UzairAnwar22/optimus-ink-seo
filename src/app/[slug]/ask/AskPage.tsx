@@ -112,7 +112,7 @@ export default function AskPage({ slug, name, avatar, bio, backgroundColor, kbHa
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   // Sidebar open/closed. Default open on desktop; the floating restore button
   // is what brings it back after a collapse.
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const abortRef = useRef<AbortController | null>(null);
 
