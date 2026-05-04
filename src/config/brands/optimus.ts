@@ -22,6 +22,18 @@ const optimus: BrandConfig = {
     primaryHover: "#1a1a1a",
     accent: "#3b82f6",
   },
+  staticPages: [
+    { path: "/ai-features",    priority: 0.8, changeFrequency: "monthly" },
+    { path: "/templates",      priority: 0.8, changeFrequency: "weekly"  },
+    { path: "/blog",           priority: 0.8, changeFrequency: "weekly"  },
+    { path: "/contact-us",     priority: 0.8, changeFrequency: "yearly"  },
+    { path: "/privacy-policy", priority: 0.8, changeFrequency: "yearly"  },
+    // Curated Ask entries — hard-coded for now, will move to dynamic
+    // generation once /:slug/ask/:topic route exists.
+    { path: "/kept/ask",                                  priority: 1.0, changeFrequency: "weekly"  },
+    { path: "/kept/ask/best-red-lipstick-for-olive-skin", priority: 1.0, changeFrequency: "monthly" },
+  ],
+  shopifyTemplateIds: ["wellness", "jewelry", "haircare", "beauty", "herbal", "foodshop"],
 };
 
 export default optimus;

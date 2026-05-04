@@ -1,44 +1,85 @@
 import { MetadataRoute } from "next";
 import { getApiBaseUrl, getSiteUrl } from "@/lib/api";
+import brand from "@/config/brand";
 
 /**
- * Dynamic sitemap — fetches all published profile slugs from backend.
- * Google Search Console mein submit karo: {SITE_URL}/sitemap.xml
+ * Dynamic sitemap. URL list is built from three sources:
+ *
+ *   1. Marketing + curated pages → `brand.staticPages`     (per-brand config)
+ *   2. Shopify template landings → `brand.shopifyTemplateIds` (per-brand config)
+ *   3. Published profiles        → `/api/health/sitemap-slugs` (DB-backed)
+ *
+ * Ask pages (/:slug/ask, /:slug/ask/:topic) are intentionally NOT generated
+ * dynamically right now — curated ones live in `staticPages`. We'll switch
+ * back to DB-driven generation once the topic route is implemented.
+ *
+ * Submit in Google Search Console as `{SITE_URL}/sitemap.xml`.
  */
+
+interface SitemapSlugRow {
+  slug: string;
+  updatedAt?: string;
+}
+
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const siteUrl = getSiteUrl();
+  const siteUrl = getSiteUrl().replace(/\/$/, "");
   const apiBase = getApiBaseUrl();
+  const now = new Date();
 
   const entries: MetadataRoute.Sitemap = [
     {
-      url: siteUrl,
-      lastModified: new Date(),
+      url: `${siteUrl}/`,
+      lastModified: now,
       changeFrequency: "daily",
       priority: 1.0,
     },
   ];
 
-  // Fetch published profiles from backend
+  // ─── 1. Static marketing pages ────────────────────────────────────────
+  for (const page of brand.staticPages || []) {
+    if (!page.path) continue;
+    entries.push({
+      url: `${siteUrl}${page.path.startsWith("/") ? page.path : `/${page.path}`}`,
+      lastModified: now,
+      changeFrequency: page.changeFrequency ?? "weekly",
+      priority: page.priority ?? 0.8,
+    });
+  }
+
+  // ─── 2. Shopify template landings (served by the SPA at /app) ────────
+  for (const templateId of brand.shopifyTemplateIds || []) {
+    if (!templateId) continue;
+    entries.push({
+      url: `${siteUrl}/app/template/shopify/${templateId}`,
+      lastModified: now,
+      changeFrequency: "monthly",
+      priority: 0.64,
+    });
+  }
+
+  // ─── 3. Published profiles + their Ask pages + Ask topics ────────────
   try {
     const res = await fetch(`${apiBase}/api/health/sitemap-slugs`, {
-      next: { revalidate: 3600 }, // Refresh sitemap hourly
+      next: { revalidate: 3600 }, // refresh hourly
     });
     if (res.ok) {
       const json = await res.json();
-      const slugs: Array<{ slug: string; updatedAt?: string }> = json?.data || [];
-      for (const item of slugs) {
-        if (item.slug) {
-          entries.push({
-            url: `${siteUrl}/${item.slug}`,
-            lastModified: item.updatedAt ? new Date(item.updatedAt) : new Date(),
-            changeFrequency: "weekly",
-            priority: 0.8,
-          });
-        }
+      const rows: SitemapSlugRow[] = json?.data || [];
+
+      for (const row of rows) {
+        if (!row.slug) continue;
+        const lastModified = row.updatedAt ? new Date(row.updatedAt) : now;
+
+        entries.push({
+          url: `${siteUrl}/${row.slug}`,
+          lastModified,
+          changeFrequency: "weekly",
+          priority: 0.8,
+        });
       }
     }
   } catch {
-    // Sitemap still works with just the home page if API fails
+    // Keep static entries even if the API is down — the sitemap still validates.
   }
 
   return entries;

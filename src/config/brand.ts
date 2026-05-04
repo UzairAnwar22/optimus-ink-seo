@@ -4,6 +4,14 @@ export interface BrandColors {
   accent: string;
 }
 
+/** A marketing/static page entry that should appear in the sitemap. */
+export interface SitemapStaticPage {
+  /** Path relative to siteUrl (must start with `/`). */
+  path: string;
+  priority?: number;
+  changeFrequency?: "always" | "hourly" | "daily" | "weekly" | "monthly" | "yearly" | "never";
+}
+
 export interface BrandConfig {
   id: "optimus" | "mykiosk" | "kevo";
   name: string;
@@ -22,6 +30,10 @@ export interface BrandConfig {
   ogLocale: string;
   twitterHandle: string;
   colors: BrandColors;
+  /** Marketing pages served outside the SEO Next.js app (e.g. by the SPA). Listed in the sitemap so crawlers can find them. */
+  staticPages?: SitemapStaticPage[];
+  /** Shopify template landing IDs — match `/app/template/shopify/:templateId` routes in the SPA. */
+  shopifyTemplateIds?: string[];
 }
 
 export interface ResolvedBrand extends BrandConfig {
