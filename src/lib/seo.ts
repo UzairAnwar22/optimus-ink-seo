@@ -11,8 +11,40 @@ interface SeoBlock {
   url?: string;
 }
 
+const NAMED_ENTITIES: Record<string, string> = {
+  amp: "&",
+  lt: "<",
+  gt: ">",
+  quot: '"',
+  apos: "'",
+  nbsp: " ",
+  hellip: "…",
+  mdash: "—",
+  ndash: "–",
+  lsquo: "‘",
+  rsquo: "’",
+  ldquo: "“",
+  rdquo: "”",
+  copy: "©",
+  reg: "®",
+  trade: "™",
+};
+
+function decodeEntities(s: string): string {
+  return s
+    // Numeric entities (decimal): &#39;
+    .replace(/&#(\d+);/g, (_, code) => String.fromCodePoint(Number(code)))
+    // Numeric entities (hex): &#x27;
+    .replace(/&#x([0-9a-f]+);/gi, (_, code) => String.fromCodePoint(parseInt(code, 16)))
+    // Named entities
+    .replace(/&([a-z]+);/gi, (m, name: string) => NAMED_ENTITIES[name.toLowerCase()] ?? m);
+}
+
 function stripHtml(html: string): string {
-  return html.replace(/<[^>]*>/g, "").trim();
+  // Decode entities BEFORE collapsing whitespace so &nbsp; → space gets folded.
+  return decodeEntities(html.replace(/<[^>]*>/g, ""))
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 /** Extract bio blocks (Bio Editor format) */

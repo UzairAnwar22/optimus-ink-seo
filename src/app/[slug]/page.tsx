@@ -19,9 +19,10 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     // unpublished pages out of search results.
     const status = await fetchProfileStatus(slug);
     if (status?.exists) {
+      const comingSoonName = status.name || slug;
       return {
-        title: `${status.name || slug} — Coming soon`,
-        description: `This bio link is being set up. Check back soon.`,
+        title: `${comingSoonName} — Coming soon | ${brand.titleSuffix}`,
+        description: `${comingSoonName}'s ${brand.titleSuffix.toLowerCase()} on ${brand.name} is being set up. Check back soon to discover their links, products, and content.`,
         robots: { index: false, follow: false },
       };
     }
@@ -33,27 +34,104 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const profileUrl = `${siteUrl}/${slug}`;
   const ogImageUrl = `${siteUrl}/${slug}/opengraph-image`;
 
-  const title = `${seo.name} | Bio Link`;
+  // SEO-friendly title: prefer the user's own bio tagline (profile-specific,
+  // ranks for their actual role), and only fall back to the generic suffix
+  // when no bio exists. Format: {Name} – {bio tagline} | {Brand}
+  const escapeRegex = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const extractTagline = (bio: string, name: string, maxLen: number): string => {
+    const escaped = escapeRegex(name);
+    let t = bio
+      // Strip self-introductions: "Hi, I'm Name, a/an", "I am Name,", "This is Name"
+      .replace(new RegExp(`^(?:Hi[,!.]?\\s+)?(?:I['']?m|I am|This is)\\s+${escaped}[,\\s]+(?:a |an |the )?`, "i"), "")
+      // Strip "Name is a/an", "Name —/–/-"
+      .replace(new RegExp(`^${escaped}\\s+(?:is|—|–|-)\\s+(?:a |an |the )?`, "i"), "")
+      // Strip leading "Name, " / "Name "
+      .replace(new RegExp(`^${escaped}[,\\s]+`, "i"), "")
+      // Strip remaining bare self-introductions: "Hi, I'm a/an", "I am a/an"
+      .replace(/^(?:Hi[,!.]?\s+)?(?:I['']?m|I am)\s+(?:a |an |the )?/i, "")
+      .trim();
+    if (!t) return "";
+    // Prefer cutting at the first sentence end if it falls inside the budget.
+    const sentEnd = t.search(/[.!?](?:\s|$)/);
+    if (sentEnd > 8 && sentEnd <= maxLen) {
+      t = t.slice(0, sentEnd);
+    } else if (t.length > maxLen) {
+      const cut = t.slice(0, maxLen);
+      const lastSpace = cut.lastIndexOf(" ");
+      t = (lastSpace > maxLen * 0.5 ? cut.slice(0, lastSpace) : cut).trimEnd() + "…";
+    }
+    return t;
+  };
+  // Budget the bio tagline against a ~60-char total title (Google's display
+  // window). Reserve room for the name, separators, and brand.
+  const TITLE_BUDGET = 60;
+  const taglineMax = Math.max(
+    18,
+    TITLE_BUDGET - seo.name.length - brand.name.length - " – ".length - " | ".length,
+  );
+  const tagline = seo.bio ? extractTagline(seo.bio, seo.name, taglineMax) : "";
+  const title = tagline
+    ? `${seo.name} – ${tagline} | ${brand.name}`
+    : `${seo.name} – ${brand.titleSuffix} | ${brand.name}`;
 
-  // Rich description from bio + content blocks
+  // Rich description from bio + content blocks. Aim for <=160 chars so search
+  // engines don't truncate, and always end with brand context for recall.
   const contentSnippets = seo.blocks
     .filter((b) => b.type === "text" || b.type === "link" || b.type === "product")
     .map((b) => b.text)
     .slice(0, 5)
     .join(" · ");
-  const description = seo.bio
-    ? `${seo.bio.slice(0, 120)}${contentSnippets ? ` — ${contentSnippets.slice(0, 40)}` : ""}`
-    : contentSnippets.slice(0, 160) || `Check out ${seo.name}'s bio link page.`;
+  const brandTail = ` — ${brand.name}`;
+  const maxDescLen = 160;
+  const truncate = (s: string, n: number) =>
+    s.length > n ? `${s.slice(0, Math.max(0, n - 1)).trimEnd()}…` : s;
+
+  let description: string;
+  if (seo.bio) {
+    const room = maxDescLen - brandTail.length;
+    const bioPart = truncate(seo.bio, Math.min(140, room));
+    if (contentSnippets && bioPart.length + 3 < room) {
+      const remaining = room - bioPart.length - 3;
+      description = `${bioPart} — ${truncate(contentSnippets, remaining)}${brandTail}`;
+    } else {
+      description = `${bioPart}${brandTail}`;
+    }
+  } else if (contentSnippets) {
+    const lead = `${seo.name}'s ${brand.titleSuffix.toLowerCase()}: `;
+    const room = maxDescLen - brandTail.length - lead.length;
+    description = `${lead}${truncate(contentSnippets, room)}${brandTail}`;
+  } else {
+    description = truncate(
+      `Discover ${seo.name}'s ${brand.titleSuffix.toLowerCase()} on ${brand.name} — all their links, products, social profiles, and content in one place.`,
+      maxDescLen,
+    );
+  }
+
+  // Keyword hints — Google ignores these but Bing and other crawlers still
+  // weight them lightly, and they add zero render cost.
+  const keywords = [
+    seo.name,
+    brand.name,
+    brand.titleSuffix,
+    "bio link",
+    "link in bio",
+    ...seo.socialLinks.map((s) => s.platform),
+    ...seo.blocks
+      .filter((b) => b.type === "product")
+      .map((b) => b.text)
+      .slice(0, 3),
+  ].filter(Boolean);
 
   const modifiedTime = profile.publishedAt || undefined;
 
   return {
     title,
     description,
+    keywords,
     alternates: { canonical: profileUrl },
     openGraph: {
       type: "profile",
-      title: seo.name,
+      title,
       description,
       url: profileUrl,
       siteName: brand.name,
@@ -64,7 +142,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       card: "summary_large_image",
       site: brand.twitterHandle,
       creator: brand.twitterHandle,
-      title: seo.name,
+      title,
       description,
       images: [ogImageUrl],
     },
