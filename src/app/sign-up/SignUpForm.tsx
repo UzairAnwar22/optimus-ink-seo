@@ -9,6 +9,9 @@ import {
   openOAuthPopup,
   getAppBaseUrl,
   OAUTH_MESSAGE_TYPE,
+  registerApi,
+  loginHandoffApi,
+  buildAppResolveUrl,
 } from "@/lib/auth";
 
 const GoogleG = () => (
@@ -20,9 +23,32 @@ const GoogleG = () => (
   </svg>
 );
 
-export default function SignUpForm() {
+// Whitelisted post-signup destinations on the SPA side. Anything not in this
+// set falls back to the default `/onboarding` route so a stray query param
+// can't redirect users to an arbitrary path.
+const NEXT_ROUTES: Record<string, string> = {
+  "brand-onboarding": "/app/brand-onboarding",
+};
+
+// SPA-side path for AuthResolve's `next` param (it requires a leading slash —
+// see optimus.Ink/src/components/Auth/AuthResolve.jsx sanitizeNext).
+const NEXT_RESOLVE_PATHS: Record<string, string> = {
+  "brand-onboarding": "/brand-onboarding",
+};
+
+interface SignUpFormProps {
+  // Optional override for the post-signup landing route. Used by the
+  // /get-started entry point to send brand users into the brand wizard.
+  postSignupNext?: keyof typeof NEXT_ROUTES;
+}
+
+export default function SignUpForm({ postSignupNext }: SignUpFormProps = {}) {
   const [error, setError] = useState("");
   const [isOAuthLoading, setIsOAuthLoading] = useState(false);
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Persist Shopify-template hand-off params so they survive OAuth round-trip
   useEffect(() => {
@@ -38,10 +64,68 @@ export default function SignUpForm() {
     } catch {}
   }, []);
 
+  // Email + password sign-up. Backend expects a `profileSlug` too; we derive
+  // one from the email's local part with a short random suffix to avoid
+  // collisions on common usernames (the user can rename their bio URL later
+  // inside the app). After register we hit the handoff/login endpoint with
+  // the same credentials so the SPA origin can persist real auth — same
+  // cross-origin pattern SignInForm uses.
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+    const trimmedName = name.trim();
+    if (!trimmedName) {
+      setError("Please enter your name.");
+      return;
+    }
+    if (!email.includes("@")) {
+      setError("Please enter a valid email address.");
+      return;
+    }
+    if (password.length < 8) {
+      setError("Password must be at least 8 characters.");
+      return;
+    }
+    setIsSubmitting(true);
+
+    // Stash the user-typed name in localStorage on the SPA origin path so
+    // BrandOnboardingWizard can pick it up — the backend register endpoint
+    // doesn't accept a `name` field on its return shape so this is the
+    // only way to carry the canonical display name through the handoff
+    // without changing the DB schema.
+    try { localStorage.setItem("brandOnbDisplayName", trimmedName); } catch {}
+
+    // Don't invent a slug client-side — the backend now derives a clean
+    // slug from `name` (or email) and disambiguates collisions with `-2`,
+    // `-3` etc. via getNextUniqueSlugGlobal. So `john smith` → `john-smith`
+    // (or `john-smith-2` if taken), never `john-smith-s85p`.
+    const reg = await registerApi({ email, password, name: trimmedName });
+    if (!reg.ok) {
+      setError(reg.error || "Sign-up failed. Please try again.");
+      setIsSubmitting(false);
+      return;
+    }
+
+    const handoff = await loginHandoffApi({ email, password });
+    if (!handoff.ok) {
+      setError(handoff.error || "Account created — please sign in to continue.");
+      setIsSubmitting(false);
+      return;
+    }
+
+    const nextPath = postSignupNext ? NEXT_RESOLVE_PATHS[postSignupNext] : undefined;
+    window.location.href = buildAppResolveUrl(handoff.handoffToken, nextPath);
+  };
+
   const handleGoogle = async () => {
     setIsOAuthLoading(true);
     setError("");
-    const callbackUrl = `${getOAuthCallbackUrl()}?provider=google`;
+    // Forward the post-signup intent through the OAuth callback URL so the SPA
+    // can route to the right destination if the popup is blocked and we fall
+    // back to a full-page redirect (the opener-message path uses postSignupNext
+    // directly and ignores this param).
+    const nextSuffix = postSignupNext ? `&next=${encodeURIComponent(postSignupNext)}` : "";
+    const callbackUrl = `${getOAuthCallbackUrl()}?provider=google${nextSuffix}`;
     const result = await getProviderAuthUrl("google", callbackUrl);
     if (!result.ok) {
       setError(result.error || "Could not start sign-up");
@@ -78,8 +162,13 @@ export default function SignUpForm() {
         return;
       }
       // Popup already verified the code and persisted tokens on the app origin.
+      // Brand "Get Started" flow opts into the dedicated wizard via the
+      // postSignupNext prop; everything else falls through to standard
+      // onboarding. URL-based override is intentionally not supported here —
+      // the prop comes from the trusted page wrapper.
       const query = window.location.search || "";
-      window.location.href = `${getAppBaseUrl()}/app/onboarding${query}`;
+      const target = (postSignupNext && NEXT_ROUTES[postSignupNext]) || "/app/onboarding";
+      window.location.href = `${getAppBaseUrl()}${target}${query}`;
     }
     window.addEventListener("message", onMessage);
   };
@@ -87,13 +176,25 @@ export default function SignUpForm() {
   return (
     <>
       <style>{`
-        .su-wrap { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 28px 16px; background: #f5f5f5; }
-        .su-card { width: 100%; max-width: 420px; background: #fff; border-radius: 16px; box-shadow: 0 4px 24px rgba(0,0,0,0.06); padding: 40px 36px 32px; }
+        /* Solid white page + flat card so the layout reads as a regular
+           page rather than a modal with backdrop dim. */
+        html, body { background: #ffffff; }
+        .su-wrap { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 28px 16px; background: #ffffff; }
+        .su-card { width: 100%; max-width: 420px; background: #ffffff; border-radius: 16px; padding: 40px 36px 32px; }
         .su-brand { display: flex; justify-content: center; align-items: center; margin-bottom: 20px; }
         .su-brand img { height: 36px; width: auto; max-width: 200px; object-fit: contain; }
         .su-brand-text { font-weight: 700; font-size: 22px; color: ${brand.colors.primary}; }
         .su-title { margin: 0; text-align: center; font-size: 22px; font-weight: 700; color: #111827; }
         .su-subtitle { margin: 8px 0 24px; text-align: center; font-size: 14px; color: #6b7280; }
+        .su-form { display: flex; flex-direction: column; gap: 12px; }
+        .su-input { width: 100%; height: 48px; border-radius: 10px; border: 1px solid #e5e7eb; background: #fff; padding: 0 16px; font-size: 14px; outline: none; color: #111827; box-sizing: border-box; transition: border-color 0.15s ease, box-shadow 0.15s ease; }
+        .su-input::placeholder { color: #9ca3af; }
+        .su-input:focus { border-color: #111827; box-shadow: 0 0 0 3px rgba(17,24,39,0.06); }
+        .su-primary { height: 48px; border-radius: 10px; border: none; cursor: pointer; font-size: 14px; font-weight: 600; color: #fff; background: #111827; transition: background 0.15s ease; margin-top: 2px; }
+        .su-primary:hover { background: #1f2937; }
+        .su-primary:disabled { opacity: 0.65; cursor: not-allowed; }
+        .su-divider { display: flex; align-items: center; gap: 12px; margin: 18px 0; color: #9ca3af; font-size: 12px; font-weight: 500; }
+        .su-divider::before, .su-divider::after { content: ""; flex: 1; height: 1px; background: #e5e7eb; }
         .su-google { height: 48px; width: 100%; border-radius: 10px; border: 1px solid #e5e7eb; background: #fff; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 10px; font-size: 14px; font-weight: 600; color: #111827; transition: background 0.15s ease, border-color 0.15s ease; }
         .su-google:hover { background: #f9fafb; border-color: #d1d5db; }
         .su-google:disabled { opacity: 0.65; cursor: not-allowed; }
@@ -125,7 +226,46 @@ export default function SignUpForm() {
             </div>
           )}
 
-          <button className="su-google" type="button" disabled={isOAuthLoading} onClick={handleGoogle}>
+          <form className="su-form" onSubmit={handleSubmit}>
+            <input
+              className="su-input"
+              type="text"
+              placeholder="Full name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              autoComplete="name"
+              disabled={isSubmitting || isOAuthLoading}
+              required
+            />
+            <input
+              className="su-input"
+              type="email"
+              placeholder="Email address"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              autoComplete="email"
+              disabled={isSubmitting || isOAuthLoading}
+              required
+            />
+            <input
+              className="su-input"
+              type="password"
+              placeholder="Password (min 8 characters)"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              autoComplete="new-password"
+              disabled={isSubmitting || isOAuthLoading}
+              required
+              minLength={8}
+            />
+            <button className="su-primary" type="submit" disabled={isSubmitting || isOAuthLoading}>
+              {isSubmitting ? "Creating account..." : "Sign Up"}
+            </button>
+          </form>
+
+          <div className="su-divider">OR</div>
+
+          <button className="su-google" type="button" disabled={isOAuthLoading || isSubmitting} onClick={handleGoogle}>
             <GoogleG />
             {isOAuthLoading ? "Opening sign-up..." : "Sign up with Google"}
           </button>

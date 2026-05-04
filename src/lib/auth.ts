@@ -102,7 +102,7 @@ export function buildAppResolveUrl(handoffToken: string, next?: string): string 
   return `${getAppBaseUrl()}/app/auth/resolve?${params.toString()}`;
 }
 
-export function registerApi(body: { profileSlug: string; email: string; password: string }) {
+export function registerApi(body: { profileSlug?: string; email: string; password: string; name?: string }) {
   return postJson("/api/auth/register", body);
 }
 

@@ -4,8 +4,9 @@ import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import brand from "@/config/brand";
 import { deriveAutoTheme } from "@/lib/theme";
 
-// Static label for the small pill above the hero headline.
-const STATIC_TAGLINE = "Your Personal Style Editor";
+// Static label for the small pill above the hero headline. The {name}
+// placeholder is replaced with the creator's name at render time.
+const STATIC_TAGLINE = "Hi, I'm {name} AI";
 
 // Fallback phrases for the big italic typewriter line when no dynamic
 // suggested chips are available from KB / askAi config.
@@ -638,10 +639,10 @@ export default function AskPage({ slug, name, avatar, bio, backgroundColor, kbHa
             {/* Static tagline pill — single fixed label, no rotation. */}
             <div style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "8px 20px", borderRadius: 50, border: `1px solid ${withAlpha(accent, 0.25)}`, background: cardBg, fontSize: 13, fontWeight: 500, color: mutedText, marginBottom: 36, backdropFilter: "blur(6px)", minHeight: 28 }}>
               <span style={{ width: 6, height: 6, borderRadius: "50%", background: accent, flexShrink: 0 }} />
-              <span>{STATIC_TAGLINE}</span>
+              <span>{STATIC_TAGLINE.replace("{name}", name)}</span>
             </div>
             <h1 style={{ fontSize: 52, fontWeight: 800, color: textColor, margin: "0 0 8px", lineHeight: 1.12, letterSpacing: "-0.8px" }}>
-              Hi, I&apos;m {name} AI
+              Ask {name} for
             </h1>
             {/* Italic + background-clip:text was clipping the `?` descender
                 because the default <p> line-height is too tight. Generous
@@ -659,7 +660,7 @@ export default function AskPage({ slug, name, avatar, bio, backgroundColor, kbHa
               fontStyle: "italic", letterSpacing: "-0.3px",
               minHeight: "1.25em",
             }}>
-              Ask {name} for &lsquo;{taglineDisplay || "\u00A0"}&rsquo;.
+              &lsquo;{taglineDisplay || "\u00A0"}&rsquo;.
             </p>
 
             {/* Initial chat widget — card with input only */}
