@@ -5,7 +5,7 @@ const kevo: BrandConfig = {
   name: "Kevo",
   shortName: "Kevo",
   tagline: "Powered by Kevo",
-  bioDomain: "kevo.store",
+  bioDomain: "dev.kevo.store",
   siteUrl: "https://dev.kevo.store",
   spaUrl: "https://dev.kevo.store/app",
   apiUrl: "https://devapi.kevo.store",
