@@ -26,6 +26,7 @@ export interface ProfileData {
   publishedAt: string | null;
   kbHandle: string | null;
   isVerified?: boolean;
+  enableSeoIndex?: boolean;
 }
 
 export interface ProfileSettings {

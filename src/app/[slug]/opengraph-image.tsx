@@ -15,7 +15,10 @@ export default async function OgImage({
   const { slug } = await params;
   const profile = await fetchPublicProfile(slug);
 
-  if (!profile) {
+  // Either no profile, or the operator has disabled SEO indexing for this
+  // profile — render a generic brand card instead of the profile-specific
+  // image so direct scraping of /opengraph-image yields no personal data.
+  if (!profile || profile.enableSeoIndex !== true) {
     return new ImageResponse(
       (
         <div
@@ -31,7 +34,7 @@ export default async function OgImage({
             fontWeight: 700,
           }}
         >
-          Profile Not Found
+          {brand.name}
         </div>
       ),
       { ...size }

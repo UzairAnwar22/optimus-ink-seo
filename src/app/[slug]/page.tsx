@@ -33,6 +33,32 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const siteUrl = getSiteUrl();
   const profileUrl = `${siteUrl}/${slug}`;
   const ogImageUrl = `${siteUrl}/${slug}/opengraph-image`;
+  // Admin-controlled gate: profiles default to noindex; superadmin flips
+  // enable_seo_index on the row when they want crawlers to pick it up.
+  const allowIndexing = profile.enableSeoIndex === true;
+
+  // Indexing off → emit only a generic title + noindex/nofollow. We deliberately
+  // drop OG, Twitter cards, keywords, canonical, JSON-LD references, and
+  // article:modified_time so social scrapers (which often ignore robots) and
+  // SEO crawlers have nothing profile-specific to latch onto.
+  if (!allowIndexing) {
+    return {
+      title: `${seo.name} | ${brand.name}`,
+      robots: {
+        index: false,
+        follow: false,
+        nocache: true,
+        googleBot: {
+          index: false,
+          follow: false,
+          noimageindex: true,
+          "max-snippet": 0,
+          "max-image-preview": "none",
+          "max-video-preview": 0,
+        },
+      },
+    };
+  }
 
   // SEO-friendly title: prefer the user's own bio tagline (profile-specific,
   // ranks for their actual role), and only fall back to the generic suffix
@@ -157,6 +183,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 async function ProfileJsonLd({ slug }: { slug: string }) {
   const profile = await fetchPublicProfile(slug);
   if (!profile) return null;
+  // Belt-and-braces: when SEO indexing is off, skip the structured data so
+  // crawlers that ignore the noindex header don't latch onto the schema.
+  if (profile.enableSeoIndex !== true) return null;
 
   const seo = extractSeoContent(profile);
   const siteUrl = getSiteUrl();
@@ -202,6 +231,9 @@ async function ProfileJsonLd({ slug }: { slug: string }) {
 async function SeoArticle({ slug }: { slug: string }) {
   const profile = await fetchPublicProfile(slug);
   if (!profile) return null;
+  // Same reasoning as ProfileJsonLd above: omit the SR-only article when the
+  // operator hasn't opted this profile into indexing.
+  if (profile.enableSeoIndex !== true) return null;
 
   const seo = extractSeoContent(profile);
 

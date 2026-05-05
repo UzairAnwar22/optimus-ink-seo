@@ -15,11 +15,13 @@ export default async function TwitterImage({
   const { slug } = await params;
   const profile = await fetchPublicProfile(slug);
 
-  if (!profile) {
+  // Either no profile, or the operator has disabled SEO indexing — render a
+  // generic brand card so direct scraping yields no profile-specific image.
+  if (!profile || profile.enableSeoIndex !== true) {
     return new ImageResponse(
       (
         <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", background: "#111827", color: "#fff", fontSize: 48, fontWeight: 700 }}>
-          Profile Not Found
+          {brand.name}
         </div>
       ),
       { ...size }
