@@ -606,7 +606,7 @@ export default function AskPage({ slug, name, avatar, bio, backgroundColor, kbHa
 
       {/* ══ BANNER (header + hero, only when no messages) ══ */}
       {!hasMessages && (
-        <div style={{ background: heroGradient, flex: 1, display: "flex", flexDirection: "column", overflow: "auto" }}>
+        <div style={{ background: heroGradient, flex: 1, display: "flex", flexDirection: "column" }}>
           {/* Header */}
           <header className="ask-hero-header" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: sidebarOpen ? "20px 36px" : "20px 36px 20px 70px", margin: "0 auto", width: "100%" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -644,18 +644,16 @@ export default function AskPage({ slug, name, avatar, bio, backgroundColor, kbHa
             <h1 style={{ fontSize: 52, fontWeight: 800, color: textColor, margin: "0 0 8px", lineHeight: 1.12, letterSpacing: "-0.8px" }}>
               Ask {name} for
             </h1>
-            {/* Italic + background-clip:text was clipping the `?` descender
-                because the default <p> line-height is too tight. Generous
-                lineHeight + a sliver of paddingBottom give the glyph room
-                without disturbing layout. */}
+            {/* Generous lineHeight + a sliver of paddingBottom give italic
+                glyph descenders (like `?`) room without disturbing layout.
+                Uses textColor (auto-derived from the page bg — dark on light
+                themes, light on dark themes) so the typewriter line reads
+                strong and on-theme without picking up the brand accent. */}
             <p style={{
               fontSize: 38, fontWeight: 700, margin: "0 0 48px",
               lineHeight: 1.25,
               paddingBottom: 6,
-              background: `linear-gradient(90deg, ${accent}, ${textColor})`,
-              WebkitBackgroundClip: "text",
-              WebkitTextFillColor: "transparent",
-              backgroundClip: "text",
+              color: textColor,
               padding: "0 4px",
               fontStyle: "italic", letterSpacing: "-0.3px",
               minHeight: "1.25em",
