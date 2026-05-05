@@ -581,6 +581,11 @@ export default function AskPage({ slug, name, avatar, bio, backgroundColor, kbHa
           tightest. !important is needed because the same properties are also
           set inline on the elements. */}
       <style>{`
+        /* Hero pane scrolls when its content (long card list) overflows the
+           viewport, but the scrollbar is hidden so the page reads as a clean
+           single screen. Wheel / touch / keyboard scrolling all still work. */
+        .ask-hero-scroll { scrollbar-width: none; -ms-overflow-style: none; }
+        .ask-hero-scroll::-webkit-scrollbar { width: 0; height: 0; display: none; }
         @media (max-width: 900px) {
           .ask-hero-header { padding: 16px 22px !important; }
           .ask-chat-header { padding: 14px 22px !important; }
@@ -606,9 +611,12 @@ export default function AskPage({ slug, name, avatar, bio, backgroundColor, kbHa
 
       {/* ══ BANNER (header + hero, only when no messages) ══ */}
       {!hasMessages && (
-        <div style={{ background: heroGradient, flex: 1, display: "flex", flexDirection: "column" }}>
-          {/* Header */}
-          <header className="ask-hero-header" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: sidebarOpen ? "20px 36px" : "20px 36px 20px 70px", margin: "0 auto", width: "100%" }}>
+        <div className="ask-hero-scroll" style={{ background: heroGradient, flex: 1, display: "flex", flexDirection: "column", overflowY: "auto" }}>
+          {/* Header — sticky at the top of the scrolling pane so the nav
+              (logo + breadcrumb links) stays visible while featured cards
+              scroll past underneath. headerBg + blur lets the gradient
+              read through subtly without hurting legibility. */}
+          <header className="ask-hero-header" style={{ position: "sticky", top: 0, zIndex: 5, display: "flex", alignItems: "center", justifyContent: "space-between", padding: sidebarOpen ? "20px 36px" : "20px 36px 20px 70px", margin: "0 auto", width: "100%", background: headerBg, backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
               <div style={{ width: 26, height: 26, borderRadius: 6, background: accent, display: "flex", alignItems: "center", justifyContent: "center" }}>
                 <span style={{ color: userBubbleText, fontSize: 13, fontWeight: 800 }}>{name.charAt(0).toUpperCase()}</span>
@@ -726,66 +734,131 @@ export default function AskPage({ slug, name, avatar, bio, backgroundColor, kbHa
               </div>
             )}
 
-            {/* Featured question card — currently scoped to the "kept" profile.
-                Sits below the suggested-question chips with a subtle label,
-                the question itself, and an arrow that hints at navigation.
-                Whole card is the link target so the click area is generous. */}
+            {/* Featured questions — currently scoped to the "kept" profile.
+                Three hand-picked deep links into kevo.store/kept/ask/<slug>.
+                Each card is its own click target with the same icon / label /
+                title / arrow shape; the whole row is the link so the click
+                area stays generous. */}
             {slug === "kept" && (
-              <a
-                href="https://kevo.store/kept/ask/best-red-lipstick-for-olive-skin"
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{
-                  width: "100%", maxWidth: 540,
-                  marginTop: 43,
-                  display: "flex", alignItems: "center", gap: 14,
-                  padding: "12px 16px",
-                  borderRadius: 14,
-                  border: `1px solid ${chipBorder}`, background: cardBg,
-                  textDecoration: "none",
-                  backdropFilter: "blur(6px)",
-                  transition: "background 0.15s, border-color 0.15s, transform 0.15s",
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.background = chipHoverBg;
-                  e.currentTarget.style.borderColor = withAlpha(accent, 0.4);
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.background = cardBg;
-                  e.currentTarget.style.borderColor = chipBorder;
-                }}
-              >
-                <span style={{
-                  flexShrink: 0,
-                  width: 32, height: 32, borderRadius: 10,
-                  background: withAlpha(accent, isDark ? 0.22 : 0.16),
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                  color: accent,
-                }}>
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                    <circle cx="12" cy="12" r="10" />
-                    <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
-                    <line x1="12" y1="17" x2="12.01" y2="17" />
-                  </svg>
-                </span>
-                <span style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 2, textAlign: "left" }}>
-                  <span style={{
-                    fontSize: 10, fontWeight: 700, color: subtleText,
-                    textTransform: "uppercase", letterSpacing: "0.6px",
-                  }}>
-                    Try asking
-                  </span>
-                  <span style={{ fontSize: 13, color: textColor, fontWeight: 500, lineHeight: 1.4 }}>
-                    What shade of red lipstick is best for my warm olive skin?
-                  </span>
-                </span>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={mutedText} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
-                  <line x1="7" y1="17" x2="17" y2="7" />
-                  <polyline points="7 7 17 7 17 17" />
-                </svg>
-              </a>
+              <div style={{ width: "100%", maxWidth: 540, marginTop: 43, display: "flex", flexDirection: "column", gap: 10 }}>
+                {[
+                  { href: "https://kevo.store/kept/ask/best-red-lipstick-for-olive-skin", text: "What shade of red lipstick is best for my warm olive skin?" },
+                  { href: "https://kevo.store/kept/ask/quiet-luxury-capsule-wardrobe", text: "What are the essential pieces for a quiet luxury capsule wardrobe?" },
+                  { href: "https://kevo.store/kept/ask/skincare-routine-for-beginners", text: "How to Build a Skincare Routine from Scratch?" },
+                  { href: "https://kevo.store/kept/ask/beach-to-bar-transition-pieces", text: "What are the best beach-to-bar transition pieces for summer?" },
+                ].map((q) => (
+                  <a
+                    key={q.href}
+                    href={q.href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{
+                      width: "100%",
+                      display: "flex", alignItems: "center", gap: 14,
+                      padding: "12px 16px",
+                      borderRadius: 14,
+                      border: `1px solid ${chipBorder}`, background: cardBg,
+                      textDecoration: "none",
+                      backdropFilter: "blur(6px)",
+                      transition: "background 0.15s, border-color 0.15s, transform 0.15s",
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.background = chipHoverBg;
+                      e.currentTarget.style.borderColor = withAlpha(accent, 0.4);
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.background = cardBg;
+                      e.currentTarget.style.borderColor = chipBorder;
+                    }}
+                  >
+                    <span style={{
+                      flexShrink: 0,
+                      width: 32, height: 32, borderRadius: 10,
+                      background: withAlpha(accent, isDark ? 0.22 : 0.16),
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                      color: accent,
+                    }}>
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                        <circle cx="12" cy="12" r="10" />
+                        <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
+                        <line x1="12" y1="17" x2="12.01" y2="17" />
+                      </svg>
+                    </span>
+                    <span style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 2, textAlign: "left" }}>
+                      <span style={{
+                        fontSize: 10, fontWeight: 700, color: subtleText,
+                        textTransform: "uppercase", letterSpacing: "0.6px",
+                      }}>
+                        Featured question
+                      </span>
+                      <span style={{ fontSize: 13, color: textColor, fontWeight: 500, lineHeight: 1.4 }}>
+                        {q.text}
+                      </span>
+                    </span>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={mutedText} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+                      <line x1="7" y1="17" x2="17" y2="7" />
+                      <polyline points="7 7 17 7 17 17" />
+                    </svg>
+                  </a>
+                ))}
+              </div>
             )}
           </section>
+
+          {/* Footer — sits inline below the hero section, inside the
+              scrolling pane, so it scrolls in after the content rather than
+              floating fixed at the viewport bottom. flexShrink:0 + marginTop:auto
+              would dock it; we explicitly DON'T do that — content-flow only. */}
+          <footer
+            className="ask-footer"
+            style={{
+              flexShrink: 0,
+              padding: "20px 16px 32px",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              gap: 12,
+            }}
+          >
+            <a
+              href={brand.siteUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 8,
+                padding: "12px 28px",
+                backgroundColor: "#ffffff",
+                color: "#111827",
+                borderRadius: 50,
+                textDecoration: "none",
+                fontSize: 14,
+                fontWeight: 600,
+                letterSpacing: "0.01em",
+                boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
+              }}
+            >
+              Join {brand.name}
+            </a>
+            <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "center", gap: "4px 8px" }}>
+              {FOOTER_LINKS.map((link, i) => (
+                <span key={link.label} style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+                  <a
+                    href={link.href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{ fontSize: 12, color: mutedText, textDecoration: "none" }}
+                  >
+                    {link.label}
+                  </a>
+                  {i < FOOTER_LINKS.length - 1 && (
+                    <span style={{ fontSize: 12, color: subtleText }}>·</span>
+                  )}
+                </span>
+              ))}
+            </div>
+          </footer>
         </div>
       )}
 
@@ -996,59 +1069,6 @@ export default function AskPage({ slug, name, avatar, bio, backgroundColor, kbHa
         .ask-chip-row::-webkit-scrollbar { display: none; }
       `}</style>
 
-      {/* ══ FOOTER (only shown on hero state, hidden in chat mode) ══ */}
-      {!hasMessages && (
-        <footer
-          className="ask-footer"
-          style={{
-            flexShrink: 0,
-            padding: "20px 16px 32px",
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            gap: 12,
-          }}
-        >
-          <a
-            href={brand.siteUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 8,
-              padding: "12px 28px",
-              backgroundColor: "#ffffff",
-              color: "#111827",
-              borderRadius: 50,
-              textDecoration: "none",
-              fontSize: 14,
-              fontWeight: 600,
-              letterSpacing: "0.01em",
-              boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
-            }}
-          >
-            Join {brand.name}
-          </a>
-          <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "center", gap: "4px 8px" }}>
-            {FOOTER_LINKS.map((link, i) => (
-              <span key={link.label} style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
-                <a
-                  href={link.href}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  style={{ fontSize: 12, color: mutedText, textDecoration: "none" }}
-                >
-                  {link.label}
-                </a>
-                {i < FOOTER_LINKS.length - 1 && (
-                  <span style={{ fontSize: 12, color: subtleText }}>·</span>
-                )}
-              </span>
-            ))}
-          </div>
-        </footer>
-      )}
       </div>{/* end main column */}
     </div>
   );
