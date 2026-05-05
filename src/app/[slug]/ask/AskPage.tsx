@@ -529,7 +529,10 @@ export default function AskPage({ slug, name, avatar, bio, backgroundColor, kbHa
             border: `1px solid ${cardBorder}`, background: cardBg,
             cursor: "pointer", color: mutedText,
             display: "flex", alignItems: "center", justifyContent: "center",
-            zIndex: 5,
+            // Sits above the sticky hero header (which is z-index: 5) so the
+            // chevron isn't clipped by the header's backdrop-blur band when
+            // the page first paints with the sidebar open.
+            zIndex: 10,
             boxShadow: "0 2px 8px rgba(0,0,0,0.06)",
             transition: "background 0.15s, color 0.15s",
           }}
