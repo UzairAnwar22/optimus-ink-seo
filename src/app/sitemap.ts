@@ -21,6 +21,11 @@ interface SitemapSlugRow {
   updatedAt?: string;
 }
 
+// Always render fresh — admin toggles (enable_seo_index, is_public) must show up
+// in the sitemap immediately, not after a 1-hour ISR window.
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const siteUrl = getSiteUrl().replace(/\/$/, "");
   const apiBase = getApiBaseUrl();
@@ -60,7 +65,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   // ─── 3. Published profiles + their Ask pages + Ask topics ────────────
   try {
     const res = await fetch(`${apiBase}/api/health/sitemap-slugs`, {
-      next: { revalidate: 3600 }, // refresh hourly
+      cache: "no-store",
     });
     if (res.ok) {
       const json = await res.json();
