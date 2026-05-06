@@ -27,6 +27,12 @@ export interface ProfileData {
   kbHandle: string | null;
   isVerified?: boolean;
   enableSeoIndex?: boolean;
+  /** Backend tag — 'brand' = brand-ambassador with a Shopify store,
+   *  'solo' = everyone else. Drives the SEO meta-tag template choice. */
+  accountType?: "brand" | "solo";
+  /** Connected Shopify domain when the owner is a brand. Used in the
+   *  brand-mode meta description / OG copy. */
+  shopDomain?: string | null;
 }
 
 export interface ProfileSettings {

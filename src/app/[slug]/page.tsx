@@ -37,13 +37,48 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   // enable_seo_index on the row when they want crawlers to pick it up.
   const allowIndexing = profile.enableSeoIndex === true;
 
-  // Indexing off → emit only a generic title + noindex/nofollow. We deliberately
-  // drop OG, Twitter cards, keywords, canonical, JSON-LD references, and
-  // article:modified_time so social scrapers (which often ignore robots) and
-  // SEO crawlers have nothing profile-specific to latch onto.
+  // ── Role-aware SEO copy ───────────────────────────────────────────────
+  // Brand owners (Shopify storefront) and solo influencers get distinct
+  // title + description templates so the public profile page reads with the
+  // right voice for the audience the crawler is serving. accountType comes
+  // from the backend (designer.service.getPublicProfile) — 'brand' for
+  // brand-ambassador role, 'solo' for everyone else. Falls back to 'solo'
+  // when the backend hasn't tagged the profile yet (older deploys / drafts).
+  const isBrand = profile.accountType === "brand";
+
+  // Titles per the role spec — short, keyword-loaded for the intended
+  // audience. Both stay under Google's ~60-char display window.
+  const title = isBrand
+    ? `${seo.name} | AI-Powered Shopify Storefront & Smart Biolink`
+    : `${seo.name} | Shoppable Hub & AI Digital Twin`;
+
+  // Descriptions per the role spec. Aim for <=160 chars so search engines
+  // don't truncate.
+  const maxDescLen = 160;
+  const truncate = (s: string, n: number) =>
+    s.length > n ? `${s.slice(0, Math.max(0, n - 1)).trimEnd()}…` : s;
+
+  const description = isBrand
+    ? truncate(
+        `Shop the latest collections from ${seo.name} on ${brand.name}. Experience one-tap Shopify checkouts, automated product bundles, and 24/7 AI-guided shopping.`,
+        maxDescLen,
+      )
+    : truncate(
+        `Explore ${seo.name}'s curated picks. Chat with my AI Digital Twin for personalized recommendations and shop my latest collaborations instantly.`,
+        maxDescLen,
+      );
+
+  // Indexing off → emit the role-aware title + description but suppress
+  // OG, Twitter cards, keywords, canonical, JSON-LD references, and the
+  // article:modified_time hint so social scrapers (which often ignore
+  // robots) and SEO crawlers can't latch onto profile-specific imagery
+  // / share metadata for unindexed profiles. The title + description
+  // copy is intentionally still profile-aware so the page reads correctly
+  // when shared even though it's not indexed.
   if (!allowIndexing) {
     return {
-      title: `${seo.name} | ${brand.name}`,
+      title,
+      description,
       robots: {
         index: false,
         follow: false,
@@ -58,79 +93,6 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
         },
       },
     };
-  }
-
-  // SEO-friendly title: prefer the user's own bio tagline (profile-specific,
-  // ranks for their actual role), and only fall back to the generic suffix
-  // when no bio exists. Format: {Name} – {bio tagline} | {Brand}
-  const escapeRegex = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const extractTagline = (bio: string, name: string, maxLen: number): string => {
-    const escaped = escapeRegex(name);
-    let t = bio
-      // Strip self-introductions: "Hi, I'm Name, a/an", "I am Name,", "This is Name"
-      .replace(new RegExp(`^(?:Hi[,!.]?\\s+)?(?:I['']?m|I am|This is)\\s+${escaped}[,\\s]+(?:a |an |the )?`, "i"), "")
-      // Strip "Name is a/an", "Name —/–/-"
-      .replace(new RegExp(`^${escaped}\\s+(?:is|—|–|-)\\s+(?:a |an |the )?`, "i"), "")
-      // Strip leading "Name, " / "Name "
-      .replace(new RegExp(`^${escaped}[,\\s]+`, "i"), "")
-      // Strip remaining bare self-introductions: "Hi, I'm a/an", "I am a/an"
-      .replace(/^(?:Hi[,!.]?\s+)?(?:I['']?m|I am)\s+(?:a |an |the )?/i, "")
-      .trim();
-    if (!t) return "";
-    // Prefer cutting at the first sentence end if it falls inside the budget.
-    const sentEnd = t.search(/[.!?](?:\s|$)/);
-    if (sentEnd > 8 && sentEnd <= maxLen) {
-      t = t.slice(0, sentEnd);
-    } else if (t.length > maxLen) {
-      const cut = t.slice(0, maxLen);
-      const lastSpace = cut.lastIndexOf(" ");
-      t = (lastSpace > maxLen * 0.5 ? cut.slice(0, lastSpace) : cut).trimEnd() + "…";
-    }
-    return t;
-  };
-  // Budget the bio tagline against a ~60-char total title (Google's display
-  // window). Reserve room for the name, separators, and brand.
-  const TITLE_BUDGET = 60;
-  const taglineMax = Math.max(
-    18,
-    TITLE_BUDGET - seo.name.length - brand.name.length - " – ".length - " | ".length,
-  );
-  const tagline = seo.bio ? extractTagline(seo.bio, seo.name, taglineMax) : "";
-  const title = tagline
-    ? `${seo.name} – ${tagline} | ${brand.name}`
-    : `${seo.name} – ${brand.titleSuffix} | ${brand.name}`;
-
-  // Rich description from bio + content blocks. Aim for <=160 chars so search
-  // engines don't truncate, and always end with brand context for recall.
-  const contentSnippets = seo.blocks
-    .filter((b) => b.type === "text" || b.type === "link" || b.type === "product")
-    .map((b) => b.text)
-    .slice(0, 5)
-    .join(" · ");
-  const brandTail = ` — ${brand.name}`;
-  const maxDescLen = 160;
-  const truncate = (s: string, n: number) =>
-    s.length > n ? `${s.slice(0, Math.max(0, n - 1)).trimEnd()}…` : s;
-
-  let description: string;
-  if (seo.bio) {
-    const room = maxDescLen - brandTail.length;
-    const bioPart = truncate(seo.bio, Math.min(140, room));
-    if (contentSnippets && bioPart.length + 3 < room) {
-      const remaining = room - bioPart.length - 3;
-      description = `${bioPart} — ${truncate(contentSnippets, remaining)}${brandTail}`;
-    } else {
-      description = `${bioPart}${brandTail}`;
-    }
-  } else if (contentSnippets) {
-    const lead = `${seo.name}'s ${brand.titleSuffix.toLowerCase()}: `;
-    const room = maxDescLen - brandTail.length - lead.length;
-    description = `${lead}${truncate(contentSnippets, room)}${brandTail}`;
-  } else {
-    description = truncate(
-      `Discover ${seo.name}'s ${brand.titleSuffix.toLowerCase()} on ${brand.name} — all their links, products, social profiles, and content in one place.`,
-      maxDescLen,
-    );
   }
 
   // Keyword hints — Google ignores these but Bing and other crawlers still
