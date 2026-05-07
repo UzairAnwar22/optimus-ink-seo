@@ -47,10 +47,12 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const isBrand = profile.accountType === "brand";
 
   // Titles per the role spec — short, keyword-loaded for the intended
-  // audience. Both stay under Google's ~60-char display window.
+  // audience. Both stay under Google's ~60-char display window. Solo copy
+  // leads with the merchant ("Meet …") so the share preview reads as a
+  // personal introduction, while brand copy stays storefront-led.
   const title = isBrand
     ? `${seo.name} | AI-Powered Shopify Storefront & Smart Biolink`
-    : `${seo.name} | Shoppable Hub & AI Digital Twin`;
+    : `Meet ${seo.name}'s AI-Powered Digital Representative by ${brand.name}`;
 
   // Descriptions per the role spec. Aim for <=160 chars so search engines
   // don't truncate.
