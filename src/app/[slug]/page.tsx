@@ -100,27 +100,17 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const ogTitle = seo.name;
   const ogDescription = seo.bio ? truncate(seo.bio, maxDescLen) : description;
 
-  // Indexing off → suppress canonical / keywords / structured-data hints so
-  // search crawlers can't index the page, but still emit OG + Twitter cards
-  // (with the merchant's own copy) so private shares in Discord/Slack/etc.
-  // render the rich preview just like indexed profiles do.
+  // Indexing off → emit a plain `noindex, nofollow` robots directive (no
+  // nocache / googleBot extensions) and suppress canonical / keywords /
+  // structured-data hints so search crawlers can't index the page. OG +
+  // Twitter cards still ship (with the merchant's own copy) so private
+  // shares in Discord/Slack/etc. render the rich preview just like indexed
+  // profiles do.
   if (!allowIndexing) {
     return {
       title,
       description,
-      robots: {
-        index: false,
-        follow: false,
-        nocache: true,
-        googleBot: {
-          index: false,
-          follow: false,
-          noimageindex: true,
-          "max-snippet": 0,
-          "max-image-preview": "none",
-          "max-video-preview": 0,
-        },
-      },
+      robots: { index: false, follow: false },
       openGraph: {
         type: "profile",
         title: ogTitle,
