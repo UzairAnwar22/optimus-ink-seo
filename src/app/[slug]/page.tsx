@@ -13,24 +13,46 @@ interface Props {
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
   const profile = await fetchPublicProfile(slug);
+  const siteUrl = getSiteUrl();
   if (!profile) {
     // Profile may exist in draft (e.g. just-claimed merchant) — surface a
     // light-touch "Coming soon" title instead of a hard 404, but keep
-    // unpublished pages out of search results.
+    // unpublished pages out of search results. Social previews still get
+    // a rich OG card (name + dynamic og-image) so links shared in
+    // Discord/Slack/etc. don't fall back to the generic site default.
     const status = await fetchProfileStatus(slug);
     if (status?.exists) {
       const comingSoonName = status.name || slug;
+      const profileUrl = `${siteUrl}/${slug}`;
+      const ogImageUrl = `${siteUrl}/${slug}/opengraph-image`;
+      const ogDescription = `${comingSoonName}'s ${brand.titleSuffix.toLowerCase()} on ${brand.name} is being set up. Check back soon to discover their links, products, and content.`;
       return {
         title: `${comingSoonName} — Coming soon | ${brand.titleSuffix}`,
-        description: `${comingSoonName}'s ${brand.titleSuffix.toLowerCase()} on ${brand.name} is being set up. Check back soon to discover their links, products, and content.`,
+        description: ogDescription,
         robots: { index: false, follow: false },
+        openGraph: {
+          type: "profile",
+          title: comingSoonName,
+          description: ogDescription,
+          url: profileUrl,
+          siteName: brand.name,
+          locale: brand.ogLocale,
+          images: [{ url: ogImageUrl, width: 1200, height: 630, alt: comingSoonName }],
+        },
+        twitter: {
+          card: "summary_large_image",
+          site: brand.twitterHandle,
+          creator: brand.twitterHandle,
+          title: comingSoonName,
+          description: ogDescription,
+          images: [ogImageUrl],
+        },
       };
     }
     return { title: "Profile Not Found", robots: { index: false, follow: false } };
   }
 
   const seo = extractSeoContent(profile);
-  const siteUrl = getSiteUrl();
   const profileUrl = `${siteUrl}/${slug}`;
   const ogImageUrl = `${siteUrl}/${slug}/opengraph-image`;
   // Admin-controlled gate: profiles default to noindex; superadmin flips
@@ -70,13 +92,18 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
         maxDescLen,
       );
 
-  // Indexing off → emit the role-aware title + description but suppress
-  // OG, Twitter cards, keywords, canonical, JSON-LD references, and the
-  // article:modified_time hint so social scrapers (which often ignore
-  // robots) and SEO crawlers can't latch onto profile-specific imagery
-  // / share metadata for unindexed profiles. The title + description
-  // copy is intentionally still profile-aware so the page reads correctly
-  // when shared even though it's not indexed.
+  // Social-share copy is the merchant's own voice — when someone forwards
+  // their bio link in Discord/Slack/Twitter the preview should read like
+  // the page they're sharing (their name + their bio). Keeps OG decoupled
+  // from the role-aware marketing title that drives the browser tab and
+  // search-result line.
+  const ogTitle = seo.name;
+  const ogDescription = seo.bio ? truncate(seo.bio, maxDescLen) : description;
+
+  // Indexing off → suppress canonical / keywords / structured-data hints so
+  // search crawlers can't index the page, but still emit OG + Twitter cards
+  // (with the merchant's own copy) so private shares in Discord/Slack/etc.
+  // render the rich preview just like indexed profiles do.
   if (!allowIndexing) {
     return {
       title,
@@ -93,6 +120,23 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
           "max-image-preview": "none",
           "max-video-preview": 0,
         },
+      },
+      openGraph: {
+        type: "profile",
+        title: ogTitle,
+        description: ogDescription,
+        url: profileUrl,
+        siteName: brand.name,
+        locale: brand.ogLocale,
+        images: [{ url: ogImageUrl, width: 1200, height: 630, alt: seo.name }],
+      },
+      twitter: {
+        card: "summary_large_image",
+        site: brand.twitterHandle,
+        creator: brand.twitterHandle,
+        title: ogTitle,
+        description: ogDescription,
+        images: [ogImageUrl],
       },
     };
   }
@@ -121,8 +165,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     alternates: { canonical: profileUrl },
     openGraph: {
       type: "profile",
-      title,
-      description,
+      title: ogTitle,
+      description: ogDescription,
       url: profileUrl,
       siteName: brand.name,
       locale: brand.ogLocale,
@@ -132,8 +176,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       card: "summary_large_image",
       site: brand.twitterHandle,
       creator: brand.twitterHandle,
-      title,
-      description,
+      title: ogTitle,
+      description: ogDescription,
       images: [ogImageUrl],
     },
     robots: { index: true, follow: true },
