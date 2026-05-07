@@ -92,13 +92,13 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
         maxDescLen,
       );
 
-  // Social-share copy is the merchant's own voice — when someone forwards
-  // their bio link in Discord/Slack/Twitter the preview should read like
-  // the page they're sharing (their name + their bio). Keeps OG decoupled
-  // from the role-aware marketing title that drives the browser tab and
-  // search-result line.
-  const ogTitle = seo.name;
-  const ogDescription = seo.bio ? truncate(seo.bio, maxDescLen) : description;
+  // Social-share copy mirrors the page-level role-aware title + description
+  // so the Discord/Slack/Twitter preview reads with the same voice as the
+  // browser tab and search result (e.g. "Uzair Anwar | Shoppable Hub & AI
+  // Digital Twin" + the marketing one-liner). The merchant's bio is still
+  // accessible via the dynamic /opengraph-image render below.
+  const ogTitle = title;
+  const ogDescription = description;
 
   // Indexing off → emit a plain `noindex, nofollow` robots directive (no
   // nocache / googleBot extensions) and suppress canonical / keywords /
