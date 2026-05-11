@@ -62,7 +62,30 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     });
   }
 
-  // ─── 3. Published profiles + their Ask pages + Ask topics ────────────
+  // ─── 3. Blog posts (sg_blogs.status = 1) ─────────────────────────────
+  try {
+    const res = await fetch(`${apiBase}/api/health/sitemap-blogs`, {
+      cache: "no-store",
+    });
+    if (res.ok) {
+      const json = await res.json();
+      const rows: Array<{ slug: string }> = json?.data || [];
+
+      for (const row of rows) {
+        if (!row.slug) continue;
+        entries.push({
+          url: `${siteUrl}/blog/${row.slug}`,
+          lastModified: now,
+          changeFrequency: "weekly",
+          priority: 1.0,
+        });
+      }
+    }
+  } catch {
+    // Sitemap stays valid even if the blog endpoint is down.
+  }
+
+  // ─── 4. Published profiles + their Ask pages + Ask topics ────────────
   try {
     const res = await fetch(`${apiBase}/api/health/sitemap-slugs`, {
       cache: "no-store",

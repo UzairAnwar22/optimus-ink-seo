@@ -25,7 +25,7 @@ const mykiosk: BrandConfig = {
   staticPages: [
     { path: "/ai-features",    priority: 0.8, changeFrequency: "monthly" },
     { path: "/templates",      priority: 0.8, changeFrequency: "weekly"  },
-    { path: "/blog",           priority: 0.8, changeFrequency: "weekly"  },
+    { path: "/blog",           priority: 1.0, changeFrequency: "weekly"  },
     { path: "/contact-us",     priority: 0.8, changeFrequency: "yearly"  },
     { path: "/privacy-policy", priority: 0.8, changeFrequency: "yearly"  },
     // Curated Ask entries — hard-coded for now, will move to dynamic
