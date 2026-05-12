@@ -166,3 +166,124 @@ export const fetchCheckoutLinkMeta = cache(
     }
   },
 );
+
+// ─── Storefront-by-slug (AskPage Shop tabs) ──────────────────────────────
+// Slug-keyed wrappers around the backend's Shopify storefront helpers.
+// The backend resolves slug → designer profile → user → shopify store on
+// its side so the SEO never has to know the merchant's domain. Solo
+// creators have no store: the backend returns 404 and we return null so
+// the UI can keep the tabs hidden cleanly.
+
+/**
+ * Shape returned by `/api/storefront/:slug/best-sellers` and
+ * `/api/storefront/:slug/new-arrivals`. This mirrors the admin GraphQL
+ * `ShopifyProductListItem` shape from the express backend — the storefront
+ * routes call the admin API with the merchant's stored access token
+ * (same code path as the dashboard's Products page), so we get live
+ * inventory + accurate pricing for the connected store.
+ */
+export interface StorefrontProduct {
+  id: string;
+  title: string;
+  handle: string;
+  status?: string;
+  vendor?: string;
+  productType?: string;
+  tags?: string[];
+  featuredImage?: { url: string; altText: string | null } | null;
+  priceRange?: {
+    min?: { amount: string; currencyCode: string };
+    max?: { amount: string; currencyCode: string };
+  };
+  totalInventory?: number | null;
+  firstVariant?: { id: string; price?: string; availableForSale?: boolean } | null;
+}
+
+export interface StorefrontProductList {
+  shop: string;
+  products: StorefrontProduct[];
+}
+
+async function fetchStorefrontList(
+  slug: string,
+  kind: "best-sellers" | "new-arrivals",
+  limit = 12,
+): Promise<StorefrontProductList | null> {
+  try {
+    const res = await fetch(
+      `${getApiBaseUrl()}/api/storefront/${encodeURIComponent(slug)}/${kind}?limit=${limit}`,
+      { next: { revalidate: 300 } }, // 5min ISR — storefronts don't change every page view
+    );
+    if (!res.ok) return null;
+    const json = await res.json();
+    const data = json?.data;
+    if (!data || !Array.isArray(data.products)) return null;
+    return { shop: String(data.shop || ""), products: data.products };
+  } catch {
+    return null;
+  }
+}
+
+export const fetchStorefrontBestSellers = cache(
+  (slug: string, limit = 12): Promise<StorefrontProductList | null> =>
+    fetchStorefrontList(slug, "best-sellers", limit),
+);
+
+export const fetchStorefrontNewArrivals = cache(
+  (slug: string, limit = 12): Promise<StorefrontProductList | null> =>
+    fetchStorefrontList(slug, "new-arrivals", limit),
+);
+
+/**
+ * Detail shape returned by `/api/storefront/:slug/product/:id`. Matches
+ * the admin GraphQL `ShopifyProductDetail` from the express backend —
+ * richer than the list-item type (variants, images, descriptionHtml).
+ */
+export interface StorefrontProductDetail {
+  id: string;
+  title: string;
+  handle: string;
+  descriptionHtml?: string;
+  status?: string;
+  vendor?: string;
+  productType?: string;
+  tags?: string[];
+  images?: Array<{ id: string; url: string; altText: string | null }>;
+  variants?: Array<{
+    id: string;
+    title: string;
+    price: string;
+    compareAtPrice: string | null;
+    sku: string | null;
+    inventoryQuantity: number | null;
+    selectedOptions: Array<{ name: string; value: string }>;
+    image: { url: string; altText: string | null } | null;
+  }>;
+  priceRange?: {
+    min?: { amount: string; currencyCode: string };
+    max?: { amount: string; currencyCode: string };
+  };
+}
+
+/**
+ * Full product detail for the AskPage "click a card to open popup" flow.
+ * Returns null when the slug has no connected store or the handle is
+ * unknown. Called from the client (AskPage onClick) so cache() is a
+ * no-op for the browser — the backend's own data-source is the
+ * deduplication boundary.
+ */
+export async function fetchStorefrontProductDetail(
+  slug: string,
+  handle: string,
+): Promise<StorefrontProductDetail | null> {
+  try {
+    const res = await fetch(
+      `${getApiBaseUrl()}/api/storefront/${encodeURIComponent(slug)}/product/${encodeURIComponent(handle)}`,
+    );
+    if (!res.ok) return null;
+    const json = await res.json();
+    return (json?.data?.product as StorefrontProductDetail) || null;
+  } catch {
+    return null;
+  }
+}
