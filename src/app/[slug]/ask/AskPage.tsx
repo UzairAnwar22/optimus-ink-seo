@@ -1473,28 +1473,11 @@ export default function AskPage({
         const liveBestSellers = (storeBestSellers || []).map(mapStorefrontToProduct).filter((p) => p.img);
         const liveNewArrivals = (storeNewArrivals || []).map(mapStorefrontToProduct).filter((p) => p.img);
 
-        const mockBestSellers: Product[] = [
-          { id: "p1", name: "Luna Satin Slip Dress", variant: "Midnight Black", rating: 4.8, reviews: 320, price: 89, img: "https://images.unsplash.com/photo-1496747611176-843222e1e57c?w=600&h=800&fit=crop&auto=format" },
-          { id: "p2", name: "Glow Renewal Serum", variant: "Vitamin C + Niacinamide", rating: 4.9, reviews: 512, price: 48, img: "https://images.unsplash.com/photo-1556228720-195a672e8a03?w=600&h=800&fit=crop&auto=format" },
-          { id: "p3", name: "Ribbed Knit Top", variant: "Cream", rating: 4.7, reviews: 198, price: 42, img: "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=600&h=800&fit=crop&auto=format" },
-          { id: "p4", name: "Classic Leather Tote", variant: "Tan Brown", rating: 4.9, reviews: 276, price: 129, img: "https://images.unsplash.com/photo-1584917865442-de89df76afd3?w=600&h=800&fit=crop&auto=format" },
-          { id: "p5", name: "Gold Rope Necklace", variant: "18K Gold Plated", rating: 4.8, reviews: 153, price: 59, img: "https://images.unsplash.com/photo-1611591437281-460bfbe1220a?w=600&h=800&fit=crop&auto=format" },
-          { id: "p6", name: "Hydrating Moisturizer", variant: "Hyaluronic Acid", rating: 4.7, reviews: 412, price: 36, img: "https://images.unsplash.com/photo-1611042553365-9b101441c135?w=600&h=800&fit=crop&auto=format" },
-        ];
-
-        // Brand merchants prefer their own live products; solo / empty
-        // stores get the mock list as a placeholder.
-        const bestSellers: Product[] = liveBestSellers.length > 0 ? liveBestSellers : mockBestSellers;
-        const newArrivals: Product[] = liveNewArrivals.length > 0 ? liveNewArrivals : mockBestSellers.slice(0, 6);
-
-        const aiPicks: Product[] = [
-          { id: "a1", name: "Bias Cut Midi Dress", variant: "Sage Green", rating: 4.6, reviews: 182, price: 95, img: "https://images.unsplash.com/photo-1572804013309-59a88b7e92f1?w=600&h=800&fit=crop&auto=format" },
-          { id: "a2", name: "Peptide Lip Treatment", variant: "Tinted", rating: 4.8, reviews: 223, price: 24, img: "https://images.unsplash.com/photo-1586495777744-4413f21062fa?w=600&h=800&fit=crop&auto=format" },
-          { id: "a3", name: "Oversized Blazer", variant: "Stone", rating: 4.7, reviews: 245, price: 119, img: "https://images.unsplash.com/photo-1591047139829-d91aecb6caea?w=600&h=800&fit=crop&auto=format" },
-          { id: "a4", name: "Sculpt & Tone Cream", variant: "Body Contour", rating: 4.6, reviews: 134, price: 45, img: "https://images.unsplash.com/photo-1620916566398-39f1143ab7be?w=600&h=800&fit=crop&auto=format" },
-          { id: "a5", name: "Minimal Hoop Earrings", variant: "Gold", rating: 4.8, reviews: 312, price: 28, img: "https://images.unsplash.com/photo-1535632787350-4e68ef0ac584?w=600&h=800&fit=crop&auto=format" },
-          { id: "a6", name: "Silk Cotton Shirt", variant: "White", rating: 4.6, reviews: 185, price: 69, img: "https://images.unsplash.com/photo-1581338834647-b0fb40704e21?w=600&h=800&fit=crop&auto=format" },
-        ];
+        // Only show live products from the merchant's Shopify store.
+        // No fallback to mock data — if the store isn't connected or has
+        // no products the section shows an empty state instead.
+        const bestSellers: Product[] = liveBestSellers;
+        const newArrivals: Product[] = liveNewArrivals;
 
         const cartSubtotal = shopCart.reduce((s, i) => s + i.price * i.qty, 0);
         const cartCount = shopCart.reduce((s, i) => s + i.qty, 0);
@@ -1694,9 +1677,13 @@ export default function AskPage({
                         yet (the Best Sellers tab itself is the destination). */}
                     {/* <a href="#" style={{ fontSize: 12, color: shopMuted, textDecoration: "none" }}>View all</a> */}
                   </div>
-                  <div className="shop-prod-grid" style={{ display: "grid", gridTemplateColumns: "repeat(6, minmax(0, 1fr))", gap: 12 }}>
-                    {bestSellers.map((p) => renderProductCard(p))}
-                  </div>
+                  {bestSellers.length > 0 ? (
+                    <div className="shop-prod-grid" style={{ display: "grid", gridTemplateColumns: "repeat(6, minmax(0, 1fr))", gap: 12 }}>
+                      {bestSellers.map((p) => renderProductCard(p))}
+                    </div>
+                  ) : (
+                    <div style={{ textAlign: "center", padding: "48px 0", color: shopMuted, fontSize: 14 }}>No products available yet</div>
+                  )}
                 </section>
               )}
 
@@ -1744,9 +1731,13 @@ export default function AskPage({
                         yet (the New Arrival tab itself is the destination). */}
                     {/* <a href="#" style={{ fontSize: 12, color: shopMuted, textDecoration: "none" }}>View all</a> */}
                   </div>
-                  <div className="shop-prod-grid" style={{ display: "grid", gridTemplateColumns: "repeat(6, minmax(0, 1fr))", gap: 12 }}>
-                    {newArrivals.map((p) => renderProductCard(p, "na-"))}
-                  </div>
+                  {newArrivals.length > 0 ? (
+                    <div className="shop-prod-grid" style={{ display: "grid", gridTemplateColumns: "repeat(6, minmax(0, 1fr))", gap: 12 }}>
+                      {newArrivals.map((p) => renderProductCard(p, "na-"))}
+                    </div>
+                  ) : (
+                    <div style={{ textAlign: "center", padding: "48px 0", color: shopMuted, fontSize: 14 }}>No products available yet</div>
+                  )}
                 </section>
               )}
             </div>
