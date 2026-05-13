@@ -141,6 +141,15 @@ export default function AskPage({
   // store, so the shop surfaces are hidden for them. The Ask tab itself
   // is still shown for everyone (it's the chat experience).
   const showShopTabs = accountType === "brand";
+  // For brand profiles use the personalized placeholder always — generic
+  // "Ask anything" stored in askAi config is too vague for a store context.
+  const GENERIC_PLACEHOLDER_RE = /^ask\s+anything\.?$/i;
+  const chatPlaceholder =
+    askAi?.questionPlaceholder && !GENERIC_PLACEHOLDER_RE.test(askAi.questionPlaceholder.trim())
+      ? askAi.questionPlaceholder
+      : accountType === "brand"
+        ? `Ask ${name} about brands, outfit advice, or product reviews...`
+        : `Ask ${name} anything...`;
   const router = useRouter();
   // Ask lives at /[slug]/ask; shop surfaces live at /[slug]/shop with
   // ?best-seller / ?new-arrival query params for sub-sections.
@@ -1047,7 +1056,7 @@ export default function AskPage({
                     value={chatInput}
                     onChange={(e) => setChatInput(e.target.value)}
                     onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(chatInput); } }}
-                    placeholder={askAi?.questionPlaceholder || `Ask ${name} about brands, outfit advice, or product reviews...`}
+                    placeholder={chatPlaceholder}
                     rows={3}
                     disabled={isTyping}
                     style={{ flex: 1, minWidth: 0, border: "none", outline: "none", fontSize: 14, padding: 0, background: "transparent", color: textColor, fontFamily: "inherit", resize: "none", lineHeight: 1.6, minHeight: 72 }}
