@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import Link from "next/link";
+import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import brand from "@/config/brand";
 import { deriveAutoTheme } from "@/lib/theme";
 import type { StorefrontProduct, StorefrontProductDetail } from "@/lib/api";
@@ -140,14 +141,14 @@ export default function AskPage({
   // store, so the shop surfaces are hidden for them. The Ask tab itself
   // is still shown for everyone (it's the chat experience).
   const showShopTabs = accountType === "brand";
-  // Map view-key → route path. Sidebar buttons render as Next.js Link
-  // components pointing at these paths so the URL updates and each
-  // surface gets its own mounted page.
+  const router = useRouter();
+  // Ask lives at /[slug]/ask; shop surfaces live at /[slug]/shop with
+  // ?best-seller / ?new-arrival query params for sub-sections.
   const viewHrefs = {
-    chat: `/${slug}/ask`,
-    shop: `/${slug}/shop`,
-    bestsellers: `/${slug}/best-sellers`,
-    newarrival: `/${slug}/new-arrival`,
+    chat:        `/${slug}/ask`,
+    shop:        `/${slug}/shop`,
+    bestsellers: `/${slug}/shop?best-seller`,
+    newarrival:  `/${slug}/shop?new-arrival`,
   } as const;
   const [chatInput, setChatInput] = useState("");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -165,17 +166,19 @@ export default function AskPage({
   // hid the navigation right when the user needed it most. The chat surface
   // keeps the previous collapsed default so the hero/conversation area gets
   // full width.
-  const [sidebarOpen, setSidebarOpen] = useState(initialView !== "chat");
-  // Main column view toggle. Each value maps to a real URL — the sidebar
-  // tabs use Next.js Link navigation so each surface gets its own page
-  // (cleaner state isolation, deep-linkable, browser history works):
-  //   'chat'        — /[slug]/ask           (default AI conversation)
-  //   'shop'        — /[slug]/shop          (full storefront grid)
-  //   'bestsellers' — /[slug]/best-sellers  (only Best Sellers section)
-  //   'newarrival'  — /[slug]/new-arrival   (only New Arrivals section)
-  // `initialView` is set by the route's server `page.tsx` so each URL
-  // mounts AskPage with the right tab already active.
-  const [currentView, setCurrentView] = useState<"chat" | "shop" | "bestsellers" | "newarrival">(initialView);
+  // Derive active tab from ?tab= query string. Falls back to initialView
+  // (server-provided) when no query param is present so the first render
+  // is correct even before useSearchParams hydrates.
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const onShopSurface = pathname.includes("/shop");
+  const currentView: "chat" | "shop" | "bestsellers" | "newarrival" = onShopSurface
+    ? searchParams.has("best-seller") ? "bestsellers"
+      : searchParams.has("new-arrival") ? "newarrival"
+      : "shop"
+    : "chat";
+
+  const [sidebarOpen, setSidebarOpen] = useState(currentView !== "chat");
   // Cart drawer (right-side panel) on the Shop surface. Starts closed; the
   // top-right cart icon toggles it. Slide-in animation runs off the class
   // toggle in the inline <style> block.
@@ -602,7 +605,7 @@ export default function AskPage({
     setChatInput("");
     // New Chat always returns the main column to the chat surface, even if
     // the user was browsing the Shop tab when they clicked it.
-    setCurrentView("chat");
+    router.push(`/${slug}/ask`);
   }, []);
 
   const loadSession = useCallback((id: string) => {
@@ -771,7 +774,7 @@ export default function AskPage({
             const allTabs: Tab[] = [
               {
                 key: "chat",
-                label: "Ask",
+                label: `Ask ${name}`,
                 href: viewHrefs.chat,
                 icon: (
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -1039,19 +1042,19 @@ export default function AskPage({
               padding: "20px 22px 16px",
             }}>
               <form onSubmit={(e) => { e.preventDefault(); sendMessage(chatInput); }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <div style={{ display: "flex", alignItems: "flex-end", gap: 10 }}>
                   <textarea
                     value={chatInput}
                     onChange={(e) => setChatInput(e.target.value)}
                     onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(chatInput); } }}
                     placeholder={askAi?.questionPlaceholder || `Ask ${name} about brands, outfit advice, or product reviews...`}
-                    rows={1}
+                    rows={3}
                     disabled={isTyping}
-                    style={{ flex: 1, minWidth: 0, border: "none", outline: "none", fontSize: 14, padding: 0, background: "transparent", color: textColor, fontFamily: "inherit", resize: "none", lineHeight: 1.6 }}
+                    style={{ flex: 1, minWidth: 0, border: "none", outline: "none", fontSize: 14, padding: 0, background: "transparent", color: textColor, fontFamily: "inherit", resize: "none", lineHeight: 1.6, minHeight: 72 }}
                   />
                   <button type="submit" disabled={isTyping || !chatInput.trim()} style={{ width: 38, height: 38, borderRadius: "50%", border: "none", background: isTyping || !chatInput.trim() ? sendDisabledBg : accent, cursor: isTyping ? "not-allowed" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={userBubbleText} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M22 2L11 13" /><path d="M22 2L15 22L11 13L2 9L22 2Z" />
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={userBubbleText} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M12 19V5" /><path d="M5 12l7-7 7 7" />
                     </svg>
                   </button>
                 </div>
@@ -1361,19 +1364,19 @@ export default function AskPage({
                 padding: "12px 16px",
               }}
             >
-              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <div style={{ display: "flex", alignItems: "flex-end", gap: 10 }}>
                 <textarea
                   value={chatInput}
                   onChange={(e) => setChatInput(e.target.value)}
                   onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(chatInput); } }}
                   placeholder={askAi?.questionPlaceholder || `Ask ${name} about brands, outfit advice, or product reviews...`}
-                  rows={1}
+                  rows={3}
                   disabled={isTyping}
-                  style={{ flex: 1, minWidth: 0, border: "none", outline: "none", fontSize: 14, padding: 0, background: "transparent", color: textColor, fontFamily: "inherit", resize: "none", lineHeight: 1.6 }}
+                  style={{ flex: 1, minWidth: 0, border: "none", outline: "none", fontSize: 14, padding: 0, background: "transparent", color: textColor, fontFamily: "inherit", resize: "none", lineHeight: 1.6, minHeight: 72 }}
                 />
                 <button type="submit" disabled={isTyping || !chatInput.trim()} style={{ width: 38, height: 38, borderRadius: "50%", border: "none", background: isTyping || !chatInput.trim() ? sendDisabledBg : accent, cursor: isTyping ? "not-allowed" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={userBubbleText} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M22 2L11 13" /><path d="M22 2L15 22L11 13L2 9L22 2Z" />
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={userBubbleText} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M12 19V5" /><path d="M5 12l7-7 7 7" />
                   </svg>
                 </button>
               </div>

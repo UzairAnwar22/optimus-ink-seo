@@ -1,4 +1,5 @@
 import { Metadata } from "next";
+import { Suspense } from "react";
 import { fetchPublicProfile, getSettings, getSiteUrl } from "@/lib/api";
 import brand from "@/config/brand";
 import AskPage from "./AskPage";
@@ -38,5 +39,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 export default async function AskSlugPage({ params }: Props) {
   const { slug } = await params;
   const data = await loadAskBootstrap(slug);
-  return <AskPage {...data} initialView="chat" />;
+  return (
+    <Suspense>
+      <AskPage {...data} initialView="chat" />
+    </Suspense>
+  );
 }
