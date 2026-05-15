@@ -1122,7 +1122,7 @@ export default function AskPage({
                 {featuredQuestions.map((q) => (
                   <a
                     key={q.handle}
-                    href={`/${slug}/featured/${q.handle}`}
+                    href={`/${slug}/${q.handle}`}
                     style={{
                       width: "100%",
                       display: "flex", alignItems: "center", gap: 14,

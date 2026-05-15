@@ -25,6 +25,10 @@ interface Props {
   brandName: string;
   brandAvatar: string;
   article: Article;
+  /** Other featured questions for this brand — sidebar "Ask {brand} a
+   *  Question" widget. The current article is filtered out upstream so
+   *  users don't get a self-link. */
+  relatedQuestions?: { handle: string; question: string }[];
 }
 
 const TYPING_TEXTS = ["'Glass Skin Essentials.'", "'Old Money Aesthetic.'", "'Linen Beach Staples.'"];
@@ -120,7 +124,7 @@ function FaqItem({ heading, body }: { heading: string; body: string }) {
   );
 }
 
-export default function FeaturedArticlePage({ slug, brandName, brandAvatar, article }: Props) {
+export default function FeaturedArticlePage({ slug, brandName, brandAvatar, article, relatedQuestions = [] }: Props) {
   const [askInput, setAskInput] = useState("");
   const typingText = useTypingEffect();
 
@@ -439,9 +443,11 @@ export default function FeaturedArticlePage({ slug, brandName, brandAvatar, arti
           <div className="kv-sidebar-card">
             <h3 className="kv-sb-h3">Ask {brandName} a Question</h3>
             <ul className="kv-sb-ul">
-              <li><a href={`/${slug}/ask/quiet-luxury-capsule-wardrobe`}>What are the essential pieces for a quiet luxury capsule wardrobe?</a></li>
-              <li><a href={`/${slug}/ask/skincare-routine-for-beginners`}>How to Build a Skincare Routine from Scratch?</a></li>
-              <li><a href={`/${slug}/ask/beach-to-bar-transition-pieces`}>What are the best beach-to-bar transition pieces for summer?</a></li>
+              {relatedQuestions.map((q) => (
+                <li key={q.handle}>
+                  <a href={`/${slug}/${q.handle}`}>{q.question}</a>
+                </li>
+              ))}
               <li>How do I shop the automated bundles featured in {brandName} articles?</li>
             </ul>
           </div>
