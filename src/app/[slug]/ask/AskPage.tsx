@@ -145,15 +145,14 @@ export default function AskPage({
   // store, so the shop surfaces are hidden for them. The Ask tab itself
   // is still shown for everyone (it's the chat experience).
   const showShopTabs = accountType === "brand";
-  // For brand profiles use the personalized placeholder always — generic
-  // "Ask anything" stored in askAi config is too vague for a store context.
-  const GENERIC_PLACEHOLDER_RE = /^ask\s+anything\.?$/i;
+  // Placeholder is hardcoded per account type — we intentionally ignore
+  // `askAi.questionPlaceholder` here because template-seeded values
+  // (e.g. "Ask about sports, fitness" from a niche template) leak into
+  // unrelated brand contexts and confuse visitors.
   const chatPlaceholder =
-    askAi?.questionPlaceholder && !GENERIC_PLACEHOLDER_RE.test(askAi.questionPlaceholder.trim())
-      ? askAi.questionPlaceholder
-      : accountType === "brand"
-        ? `Ask ${name} about brands, outfit advice, or product reviews...`
-        : `Ask ${name} anything...`;
+    accountType === "brand"
+      ? `Ask ${name} about brands, outfit advice, or product reviews...`
+      : `Ask ${name} anything...`;
   const router = useRouter();
   // Ask lives at /[slug]/ask; shop surfaces live at /[slug]/shop with
   // ?best-seller / ?new-arrival query params for sub-sections.
@@ -184,7 +183,10 @@ export default function AskPage({
   // is correct even before useSearchParams hydrates.
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const onShopSurface = pathname.includes("/shop");
+  // Match `/<slug>/shop` exactly — substring `includes("/shop")` would
+  // also match slugs that start with "shop-" (e.g. "shop-trykept-co"),
+  // flipping the Ask page into Shop view by mistake.
+  const onShopSurface = /\/shop(?:\/|$)/.test(pathname);
   const currentView: "chat" | "shop" | "bestsellers" | "newarrival" = onShopSurface
     ? searchParams.has("best-seller") ? "bestsellers"
       : searchParams.has("new-arrival") ? "newarrival"
@@ -837,7 +839,11 @@ export default function AskPage({
             ];
             // Solo creators only see the Ask tab — the shop surfaces
             // require a connected Shopify store, which they don't have.
-            const tabs = showShopTabs ? allTabs : allTabs.filter((t) => t.key === "chat");
+            // Temporary: also hide shop tabs for the `kept` slug while
+            // the merchandising experience is being finalized. Remove
+            // this slug check once the Kept storefront is ready to ship.
+            const hideShopTabs = !showShopTabs || slug === "kept";
+            const tabs = hideShopTabs ? allTabs.filter((t) => t.key === "chat") : allTabs;
             return (
               <div style={{ padding: "14px 8px 16px", display: "flex", flexDirection: "column", gap: 4 }}>
                 {tabs.map((t) => {
