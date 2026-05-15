@@ -448,7 +448,6 @@ export default function FeaturedArticlePage({ slug, brandName, brandAvatar, arti
                   <a href={`/${slug}/${q.handle}`}>{q.question}</a>
                 </li>
               ))}
-              <li>How do I shop the automated bundles featured in {brandName} articles?</li>
             </ul>
           </div>
 
