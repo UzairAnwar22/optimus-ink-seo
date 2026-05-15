@@ -39,6 +39,9 @@ interface Props {
   storeBestSellers?: StorefrontProduct[];
   /** New-arrivals list fetched server-side per slug. Empty for solo. */
   storeNewArrivals?: StorefrontProduct[];
+  /** Featured Q&A chips shown in the hero. Each chip deep-links to
+   *  /[slug]/featured/[handle] for the curated article surface. */
+  featuredQuestions?: { handle: string; question: string }[];
   /** Which tab the page mounts with. Drives a real URL per surface:
    *   chat        → /[slug]/ask
    *   shop        → /[slug]/shop
@@ -135,6 +138,7 @@ export default function AskPage({
   accountType = "solo",
   storeBestSellers = [],
   storeNewArrivals = [],
+  featuredQuestions = [],
   initialView = "chat",
 }: Props) {
   // Shop tabs are brand-only — solo creators have no connected Shopify
@@ -1102,24 +1106,17 @@ export default function AskPage({
               </div>
             )}
 
-            {/* Featured questions — currently scoped to the "kept" profile.
-                Three hand-picked deep links into kevo.store/kept/ask/<slug>.
-                Each card is its own click target with the same icon / label /
-                title / arrow shape; the whole row is the link so the click
-                area stays generous. */}
-            {slug === "kept" && (
+            {/* Featured questions — driven by the bootstrap's
+                `featuredQuestions` list (server-side, see
+                _lib/featuredArticles.ts). Each card deep-links to the
+                internal /[slug]/featured/[handle] surface so the whole
+                article experience stays on our domain. */}
+            {featuredQuestions.length > 0 && (
               <div style={{ width: "100%", maxWidth: 540, marginTop: 43, display: "flex", flexDirection: "column", gap: 10 }}>
-                {[
-                  { href: "https://kevo.store/kept/ask/best-red-lipstick-for-olive-skin", text: "What shade of red lipstick is best for my warm olive skin?" },
-                  { href: "https://kevo.store/kept/ask/quiet-luxury-capsule-wardrobe", text: "What are the essential pieces for a quiet luxury capsule wardrobe?" },
-                  { href: "https://kevo.store/kept/ask/skincare-routine-for-beginners", text: "How to Build a Skincare Routine from Scratch?" },
-                  { href: "https://kevo.store/kept/ask/beach-to-bar-transition-pieces", text: "What are the best beach-to-bar transition pieces for summer?" },
-                ].map((q) => (
+                {featuredQuestions.map((q) => (
                   <a
-                    key={q.href}
-                    href={q.href}
-                    target="_blank"
-                    rel="noopener noreferrer"
+                    key={q.handle}
+                    href={`/${slug}/featured/${q.handle}`}
                     style={{
                       width: "100%",
                       display: "flex", alignItems: "center", gap: 14,
@@ -1160,7 +1157,7 @@ export default function AskPage({
                         Featured question
                       </span>
                       <span style={{ fontSize: 13, color: textColor, fontWeight: 500, lineHeight: 1.4 }}>
-                        {q.text}
+                        {q.question}
                       </span>
                     </span>
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={mutedText} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>

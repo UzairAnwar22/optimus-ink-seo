@@ -20,6 +20,7 @@ import {
   fetchStorefrontNewArrivals,
 } from "@/lib/api";
 import type { StorefrontProduct } from "@/lib/api";
+import { fetchFeaturedQuestions } from "./featuredArticles";
 
 export interface AskBootstrap {
   slug: string;
@@ -36,6 +37,7 @@ export interface AskBootstrap {
   accountType: "brand" | "solo";
   storeBestSellers: StorefrontProduct[];
   storeNewArrivals: StorefrontProduct[];
+  featuredQuestions: { handle: string; question: string }[];
 }
 
 export async function loadAskBootstrap(slug: string): Promise<AskBootstrap> {
@@ -60,12 +62,11 @@ export async function loadAskBootstrap(slug: string): Promise<AskBootstrap> {
   // Solo creators have no store — fetches are skipped and the bootstrap
   // returns empty arrays so AskPage hides the tabs entirely.
   const isBrand = profile.accountType === "brand";
-  const [bestSellersList, newArrivalsList] = isBrand
-    ? await Promise.all([
-        fetchStorefrontBestSellers(slug, 12),
-        fetchStorefrontNewArrivals(slug, 12),
-      ])
-    : [null, null];
+  const [bestSellersList, newArrivalsList, featuredQuestions] = await Promise.all([
+    isBrand ? fetchStorefrontBestSellers(slug, 12) : Promise.resolve(null),
+    isBrand ? fetchStorefrontNewArrivals(slug, 12) : Promise.resolve(null),
+    fetchFeaturedQuestions(slug),
+  ]);
 
   return {
     slug,
@@ -82,5 +83,6 @@ export async function loadAskBootstrap(slug: string): Promise<AskBootstrap> {
     accountType: isBrand ? "brand" : "solo",
     storeBestSellers: bestSellersList?.products || [],
     storeNewArrivals: newArrivalsList?.products || [],
+    featuredQuestions: featuredQuestions.map((q) => ({ handle: q.handle, question: q.question })),
   };
 }
