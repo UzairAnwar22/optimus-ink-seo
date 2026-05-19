@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
+import brand from "@/config/brand";
 
 interface Article {
   question: string;
@@ -453,7 +454,7 @@ export default function FeaturedArticlePage({ slug, brandName, brandAvatar, arti
 
           {/* Explore card */}
           <div className="kv-sidebar-card">
-            <h3 className="kv-sb-h3">Explore {brandName}</h3>
+            <h3 className="kv-sb-h3">Explore {brand.name}</h3>
             <ul className="kv-sb-ul">
               {article.exploreLinks.map((l) => (
                 <li key={l.label}><a href={l.url}>{l.label}</a></li>
@@ -466,7 +467,7 @@ export default function FeaturedArticlePage({ slug, brandName, brandAvatar, arti
 
       {/* ── Footer ── */}
       <footer className="kv-footer">
-        <a href={`/${slug}/ask`} className="kv-footer-join">Join {brandName}</a>
+        <a href="/" className="kv-footer-join">Join {brand.name}</a>
         <div className="kv-footer-links">
           <span style={{ cursor: "pointer" }}>Cookie Preferences</span>
           <span className="sep">·</span>
