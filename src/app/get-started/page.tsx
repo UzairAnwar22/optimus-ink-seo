@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Script from "next/script";
 import brand from "@/config/brand";
 import SignUpForm from "../sign-up/SignUpForm";
 
@@ -13,5 +14,24 @@ export const metadata: Metadata = {
 // brand onboarding wizard (`/brand-onboarding`) instead of the standard
 // creator wizard. The flag is consumed by SignUpForm's redirect logic.
 export default function GetStartedPage() {
-  return <SignUpForm postSignupNext="brand-onboarding" />;
+  return (
+    <>
+      {/* Google Analytics (gtag.js) — scoped to /get-started only. SignUpForm
+          is shared with /sign-up, so the tag lives here on the route rather
+          than in the form to avoid double-loading on the plain sign-up page. */}
+      <Script
+        src="https://www.googletagmanager.com/gtag/js?id=G-F5VT1WMVLZ"
+        strategy="afterInteractive"
+      />
+      <Script id="ga-gtag-get-started" strategy="afterInteractive">
+        {`
+          window.dataLayer = window.dataLayer || [];
+          function gtag(){dataLayer.push(arguments);}
+          gtag('js', new Date());
+          gtag('config', 'G-F5VT1WMVLZ');
+        `}
+      </Script>
+      <SignUpForm postSignupNext="brand-onboarding" />
+    </>
+  );
 }
